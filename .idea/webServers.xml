@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="d8c0dddd-e959-4c01-adde-06522ab71e7e" name="myers" url="http://seele006@myers.bioinformatics.nl">
+        <fileTransfer rootFolder="/home/seele006" accessType="SFTP" host="myers.bioinformatics.nl" port="22" sshConfigId="6e3af869-d654-4659-9b85-4f05a1fba9bf" sshConfig="seele006@myers.bioinformatics.nl:22 agent" authAgent="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
