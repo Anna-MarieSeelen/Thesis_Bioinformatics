@@ -2,8 +2,7 @@
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
-Description: alignment of protein sequences to a reference protein sequence
-and returning stats
+Description: run MS2Query
 Usage: python3 *name_of_script* *path_folder_input* *path_folder_output*
     name_of_script: MS2Query.py
     path_folder_input: Define the folder in which your query spectra are stored. Accepted formats are: "mzML", "json",
@@ -26,13 +25,10 @@ def ms2query(path_folder_input_files,path_folder_library_files):
     # Define the folder in which your query spectra are stored.
     # Accepted formats are: "mzML", "json", "mgf", "msp", "mzxml", "usi" or a pickled matchms object.
     ms2_spectra_directory = path_folder_input_files
-
     # Downloads pretrained models and files for MS2Query (>10GB download)
     download_default_models(ms2query_library_files_directory, default_library_file_base_names())
-
     # Create a MS2Library object
     ms2library = create_library_object_from_one_dir(ms2query_library_files_directory, default_library_file_base_names())
-
     # Run library search and analog search on your files.
     run_complete_folder(ms2library, ms2_spectra_directory)
 
