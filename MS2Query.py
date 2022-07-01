@@ -37,6 +37,7 @@ def main():
     # step 1:
     path_folder_input_files = argv[1]
     path_folder_library_files = argv[2]
+    ms2query(path_folder_input_files, path_folder_library_files)
 
 if __name__ == "__main__":
     main()
