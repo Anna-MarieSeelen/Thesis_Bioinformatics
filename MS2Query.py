@@ -28,6 +28,7 @@ def ms2query(path_folder_input_files,path_folder_library_files):
     # Downloads pretrained models and files for MS2Query (>10GB download)
     download_default_models(ms2query_library_files_directory, default_library_file_base_names())
     # Create a MS2Library object
+    print("Hello")
     ms2library = create_library_object_from_one_dir(ms2query_library_files_directory, default_library_file_base_names())
     print("hi")
     # Run library search and analog search on your files.
