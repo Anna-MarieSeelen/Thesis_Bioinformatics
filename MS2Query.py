@@ -33,6 +33,7 @@ def ms2query(path_folder_input_files,path_folder_library_files):
     # Run library search and analog search on your files.
     run_complete_folder(ms2library, ms2_spectra_directory)
     print("hey")
+    print("you're doing great")
 
 def main():
     """Main function of this module"""

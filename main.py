@@ -52,6 +52,7 @@ def run_needle(reference, related, gapopen, gapextend=0.5):
         .format(reference, related, gapopen, gapextend, out_fn)
     e = subprocess.check_call(cmd, shell=True)
     print("EXIT STATUS AND TYPE", e, type(e))
+    print("hi")
     return out_fn
 
 def run_tool2_when_you_want_output_of_command_line():
