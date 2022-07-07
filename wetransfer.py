@@ -55,7 +55,7 @@ def download(file_id, recipient_id, security_hash):
 
     sys.stdout.write('\r100% {0}/{1}\n'.format(file_size, file_size))
     output_file.close()
-    print "Finished! {0}".format(file_name)
+    print "Finished!! {0}".format(file_name)
 
 
 def extract_params(url):
