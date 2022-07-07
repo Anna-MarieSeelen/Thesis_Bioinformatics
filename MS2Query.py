@@ -19,28 +19,24 @@ from ms2query.run_ms2query import download_default_models, default_library_file_
 from ms2query.ms2library import create_library_object_from_one_dir
 
 # functions
-def ms2query(path_folder_input_files,path_folder_library_files):
+def ms2query(path_folder_input_files: str,path_folder_library_files: str) -> None:
     """
-    Executes MS2Query and makes folder called results where csv file with results is stored.
+    Downloads GNPS mass spectral library, executes MS2Query, and makes folder called where output csv file is stored.
 
     :param path_folder_input_files: str, path of location of folder in which your query spectra are stored
     :param path_folder_library_files: str, path of location of folder where all your downloaded MS2Query libraries are
     stored
     :return: no return, but makes folder with csv file containing matches and analogues for every compound in input_file
     """
-    # Set the location where all your downloaded model files are stored
-    ms2query_library_files_directory = path_folder_library_files
-    # Define the folder in which your query spectra are stored.
-    # Accepted formats are: "mzML", "json", "mgf", "msp", "mzxml", "usi" or a pickled matchms object.
-    ms2_spectra_directory = path_folder_input_files
-    # Downloads pretrained models and files for MS2Query (>10GB download)
-    download_default_models(ms2query_library_files_directory, default_library_file_base_names())
-    # Create a MS2Library object
-    ms2library = create_library_object_from_one_dir(ms2query_library_files_directory, default_library_file_base_names())
-    # Run library search and analog search on your files.
-    run_complete_folder(ms2library, ms2_spectra_directory)
 
-def main():
+    # Downloads pretrained models and files for MS2Query (>10GB download)
+    download_default_models(path_folder_library_files, default_library_file_base_names())
+    # Create a MS2Library object
+    ms2library = create_library_object_from_one_dir(path_folder_library_files, default_library_file_base_names())
+    # Run library search and analog search on your files.
+    run_complete_folder(ms2library, path_folder_input_files)
+
+def main() -> None:
     """Main function of this module"""
     # step 1: execute MS2Query
     path_folder_input_files = argv[1]
