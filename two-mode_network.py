@@ -24,8 +24,10 @@ def connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_fil
     df_MS2Query = pd.read_csv(path_to_file_with_MS2Query_csv, header=0)
     df_MS2LDA = pd.read_csv(path_file_with_MS2LDA_csv, header=0)
 
-    #add Motif and Document number into 1 dataframe
+    #add Motif and Document number into 1 dataframe, but only include Motifs with more than 5 doc --> you will lose some doc
     df_new=df_MS2LDA[["Motif","Document"]].groupby("Motif", as_index=True).aggregate({"Document":list})
+    df_new=df_new[df_new['Document'].str.len() >= 5]
+    #https://stackoverflow.com/questions/58297277/how-to-get-a-length-of-lists-in-pandas-dataframe
     f = lambda x: 'document_{}'.format(x + 1)
     df= pd.DataFrame(df_new.Document.values.tolist(),df_new.index, dtype=object).fillna('').rename(columns=f)
     #https://stackoverflow.com/questions/44663903/pandas-split-column-of-lists-of-unequal-length-into-multiple-columns
@@ -39,21 +41,12 @@ def information_document_node(path_to_file_with_MS2Query_csv):
     df=pd.concat([df_new, df_part], axis=1).fillna('')
     return df
 
-#Make the other file with fragements input too: Mass2Motif, fragments
-def information_document_Mass2Motif_node(path_file_with_MS2LDA_csv):
-    return None
-
-def to_output_tab_file(alignment_list): #this should be csv format, not done yet
-    """Takes a nested sorted list and outputs a tab delimited file
-
-    alignment_list: nested list with families and alignment lenghts
-    return: tab delimited text file with the contents of each sub list on a line
-    """
-    tab_file=open("out_tab_delimited.txt", "w")
-    for sub_list in alignment_list:
-        tab_file.write("{0}\t{1}\t{2}".format(sub_list[0], sub_list[1], sub_list[2]))
-        tab_file.write("\n")
-    return None
+#Make the other file with fragements input too: Mass2Motif, fragments #not done yet
+def information_document_Mass2Motif_node(path_file_with_MS2LDA_csv_fragments):
+    df_Motif_fragments= pd.read_csv(path_file_with_MS2LDA_csv_fragments, header=0)
+    df_Motif_fragments["Fragment+Probability"] = df_Motif_fragments.apply(lambda x: list([df_Motif_fragments['Feature'],df_Motif_fragments["Probability"]]), axis=1)
+    df_new = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif", as_index=True).aggregate({"Fragment+Probability": list})
+    return df_new
 
 def main() -> None:
     """Main function of this module"""
@@ -61,9 +54,11 @@ def main() -> None:
     path_to_file_with_MS2Query_csv= argv[1]
     # step 2: parse MS2LDA file
     path_file_with_MS2LDA_csv = argv[2]
+    # step 3: input Mass2Motif fragments file
+    path_file_with_Motif_fragments_csv = argv[3]
     # stept 3: put relevant info in new document
-    #print(connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv))
+    print(connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv))
     print(information_document_node(path_to_file_with_MS2Query_csv))
-
+    print(information_document_Mass2Motif_node(path_file_with_Motif_fragments_csv))
 if __name__ == "__main__":
     main()
