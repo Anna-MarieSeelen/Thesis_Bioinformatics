@@ -30,14 +30,15 @@ def connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_fil
     df_new=df_MS2LDA[["Motif","Document"]].groupby("Motif", as_index=True).aggregate({"Document":list})
     # we only want the motifs found in more than 5 spectra
     df_new=df_new[df_new['Document'].str.len() >= 5]
+    df_new2 = df_new["Document"]
     #https://stackoverflow.com/questions/58297277/how-to-get-a-length-of-lists-in-pandas-dataframe
     f = lambda x: 'document_{}'.format(x + 1)
-    df= pd.DataFrame(df_new.Document, df_new.Document.values.tolist(),df_new.index, dtype=object).fillna('').rename(columns=f)
-    #https://stackoverflow.com/questions/44663903/pandas-split-column-of-lists-of-unequal-length-into-multiple-columns
+    df= pd.DataFrame(df_new.Document.values.tolist(),df_new.index, dtype=object).fillna('').rename(columns=f)
+    # https://stackoverflow.com/questions/44663903/pandas-split-column-of-lists-of-unequal-length-into-multiple-columns
+    df = pd.concat([df, df_new2], axis=1)
     return df
 
 def information_document_node(path_to_file_with_MS2Query_csv):
-    #TODO: ff zorgen dat er ook nog een column is met alle documents in een lijst
     df_MS2Query = pd.read_csv(path_to_file_with_MS2Query_csv, header=0)
     df_sub = df_MS2Query[df_MS2Query.ms2query_model_prediction > 0.7]
     df_part=pd.DataFrame(df_sub[["query_spectrum_nr","ms2query_model_prediction", "precursor_mz_difference", "smiles" ]]).set_index("query_spectrum_nr")
@@ -47,17 +48,19 @@ def information_document_node(path_to_file_with_MS2Query_csv):
 
 #Make the other file with fragements input too: Mass2Motif, fragments
 def information_document_Mass2Motif_node(path_file_with_MS2LDA_csv_fragments):
-    # TODO: ff zorgen dat er ook nog een column is met alle fragments in een lijst, lijst duplicaten?
     df_Motif_fragments= pd.read_csv(path_file_with_MS2LDA_csv_fragments, header=0)
     df_Motif_fragments["Fragment+Probability"]=df_Motif_fragments[["Feature", "Probability"]].values.tolist()
     df_new = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif", as_index=True).aggregate({"Fragment+Probability": list})
     # to defide the list of lists into more columns
-    #f = lambda x: 'fragment_{}+probability'.format(x + 1)
-    #df_new=df_new["Fragment+Probability"].apply(pd.Series).fillna('').rename(columns=f)
-    #https://stackoverflow.com/questions/45107523/pandas-convert-list-of-lists-to-multiple-columns
+    df_new2 = df_new["Fragment+Probability"]
+    f = lambda x: 'fragment_{}+probability'.format(x + 1)
+    df_new=df_new["Fragment+Probability"].apply(pd.Series).fillna('').rename(columns=f)
+    # https://stackoverflow.com/questions/45107523/pandas-convert-list-of-lists-to-multiple-columns
+    df_new=pd.concat([df_new, df_new2], axis=1)
     return df_new
 
 def make_df_smiles(df_doc_to_smiles):
+    #TODO: waarom doet deze smiles het niet?
     data_smiles=[]
     for index,row in df_doc_to_smiles.iterrows():
         if row["smiles"] != "":
@@ -68,7 +71,6 @@ def make_df_smiles(df_doc_to_smiles):
     return df_smiles
 
 def visualize_mol(smiles):
-    # TODO: kijken waarom deze smiles het niet doet
     """
     function adapted from: https://pchanda.github.io/See-substructure-in-molecule/
     :param smiles:
@@ -97,16 +99,16 @@ def main() -> None:
     df_smiles=make_df_smiles(df_doc_to_smiles)
     # step 6: function to visualize smiles
     #print each mass2Motif with information
+    hello=[]
     for index, row in df_motifs_to_doc.iterrows():
         print("\n")
         print(index)
         if index in df_motifs_to_frag.index.values.tolist():
-            print(df_motifs_to_frag.at[index, "Fragment+Probability"]) #motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+            print(df_motifs_to_frag.at[index, "Fragment+Probability"])
         else:
             print("motif not in motifs_to_fragment")
-        print(df_motifs_to_doc.at[index, "Fragment+Probability"]) #motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
-        else:
-            print("motif not in motifs_to_fragment")
+        print(df_motifs_to_doc.at[index, "Document"])  # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+        hello.append(len(df_motifs_to_doc.at[index, "Document"]))
         for cell in row:
             if cell in df_smiles.index.values.tolist():
                 print(df_smiles.at[cell, "smiles"])
