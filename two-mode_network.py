@@ -16,6 +16,8 @@ import pandas as pd
 import re
 import subprocess
 import os.path
+import rdkit.Chem as Chem
+from rdkit.Chem.Draw import MolToImage
 
 # functions
 def connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv):
@@ -26,14 +28,16 @@ def connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_fil
 
     #add Motif and Document number into 1 dataframe, but only include Motifs with more than 5 doc --> you will lose some doc
     df_new=df_MS2LDA[["Motif","Document"]].groupby("Motif", as_index=True).aggregate({"Document":list})
+    # we only want the motifs found in more than 5 spectra
     df_new=df_new[df_new['Document'].str.len() >= 5]
     #https://stackoverflow.com/questions/58297277/how-to-get-a-length-of-lists-in-pandas-dataframe
     f = lambda x: 'document_{}'.format(x + 1)
-    df= pd.DataFrame(df_new.Document.values.tolist(),df_new.index, dtype=object).fillna('').rename(columns=f)
+    df= pd.DataFrame(df_new.Document, df_new.Document.values.tolist(),df_new.index, dtype=object).fillna('').rename(columns=f)
     #https://stackoverflow.com/questions/44663903/pandas-split-column-of-lists-of-unequal-length-into-multiple-columns
     return df
 
 def information_document_node(path_to_file_with_MS2Query_csv):
+    #TODO: ff zorgen dat er ook nog een column is met alle documents in een lijst
     df_MS2Query = pd.read_csv(path_to_file_with_MS2Query_csv, header=0)
     df_sub = df_MS2Query[df_MS2Query.ms2query_model_prediction > 0.7]
     df_part=pd.DataFrame(df_sub[["query_spectrum_nr","ms2query_model_prediction", "precursor_mz_difference", "smiles" ]]).set_index("query_spectrum_nr")
@@ -41,12 +45,41 @@ def information_document_node(path_to_file_with_MS2Query_csv):
     df=pd.concat([df_new, df_part], axis=1).fillna('')
     return df
 
-#Make the other file with fragements input too: Mass2Motif, fragments #not done yet
+#Make the other file with fragements input too: Mass2Motif, fragments
 def information_document_Mass2Motif_node(path_file_with_MS2LDA_csv_fragments):
+    # TODO: ff zorgen dat er ook nog een column is met alle fragments in een lijst, lijst duplicaten?
     df_Motif_fragments= pd.read_csv(path_file_with_MS2LDA_csv_fragments, header=0)
-    df_Motif_fragments["Fragment+Probability"] = df_Motif_fragments.apply(lambda x: list([df_Motif_fragments['Feature'],df_Motif_fragments["Probability"]]), axis=1)
+    df_Motif_fragments["Fragment+Probability"]=df_Motif_fragments[["Feature", "Probability"]].values.tolist()
     df_new = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif", as_index=True).aggregate({"Fragment+Probability": list})
+    # to defide the list of lists into more columns
+    #f = lambda x: 'fragment_{}+probability'.format(x + 1)
+    #df_new=df_new["Fragment+Probability"].apply(pd.Series).fillna('').rename(columns=f)
+    #https://stackoverflow.com/questions/45107523/pandas-convert-list-of-lists-to-multiple-columns
     return df_new
+
+def make_df_smiles(df_doc_to_smiles):
+    data_smiles=[]
+    for index,row in df_doc_to_smiles.iterrows():
+        if row["smiles"] != "":
+            data_smiles.append(row)
+        else:
+            pass
+    df_smiles = pd.DataFrame(data_smiles)
+    return df_smiles
+
+def visualize_mol(smiles):
+    # TODO: kijken waarom deze smiles het niet doet
+    """
+    function adapted from: https://pchanda.github.io/See-substructure-in-molecule/
+    :param smiles:
+    :return:
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    Chem.Kekulize(mol)
+    img = MolToImage(mol, size=(400, 400), fitImage=True)
+    return img
 
 def main() -> None:
     """Main function of this module"""
@@ -57,8 +90,27 @@ def main() -> None:
     # step 3: input Mass2Motif fragments file
     path_file_with_Motif_fragments_csv = argv[3]
     # stept 3: put relevant info in new document
-    print(connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv))
-    print(information_document_node(path_to_file_with_MS2Query_csv))
-    print(information_document_Mass2Motif_node(path_file_with_Motif_fragments_csv))
+    df_motifs_to_doc=connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv)
+    df_doc_to_smiles=information_document_node(path_to_file_with_MS2Query_csv)
+    df_motifs_to_frag=information_document_Mass2Motif_node(path_file_with_Motif_fragments_csv)
+    # step 5: make dataframe with only smiles
+    df_smiles=make_df_smiles(df_doc_to_smiles)
+    # step 6: function to visualize smiles
+    #print each mass2Motif with information
+    for index, row in df_motifs_to_doc.iterrows():
+        print("\n")
+        print(index)
+        if index in df_motifs_to_frag.index.values.tolist():
+            print(df_motifs_to_frag.at[index, "Fragment+Probability"]) #motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+        else:
+            print("motif not in motifs_to_fragment")
+        print(df_motifs_to_doc.at[index, "Fragment+Probability"]) #motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+        else:
+            print("motif not in motifs_to_fragment")
+        for cell in row:
+            if cell in df_smiles.index.values.tolist():
+                print(df_smiles.at[cell, "smiles"])
+                visualize_mol(df_smiles.at[cell, "smiles"])
+
 if __name__ == "__main__":
     main()
