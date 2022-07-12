@@ -18,6 +18,7 @@ import subprocess
 import os.path
 import rdkit.Chem as Chem
 from rdkit.Chem.Draw import MolToImage
+from fpdf import FPDF
 
 # functions
 def connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv):
@@ -83,6 +84,22 @@ def visualize_mol(smiles):
     img = MolToImage(mol, size=(400, 400), fitImage=True)
     return img
 
+def visualize_on_command_line(img):
+    """Run jellyfish program on fasta file
+    input_fn: string, filename of input FASTA file
+    kmer_size: int, size of k-mers used by jellyfish
+    """
+    #out_fn = 'tomato{}'.format(kmer_size)
+    cmd = 'viu {}' \
+            .format(img)
+    # e = subprocess.check_output(cmd, shell=True)
+    # if os.path.exists(out_fn):
+    #     cmd = 'jellyfish stats {}'.format(out_fn)
+    # else:
+    #     cmd = 'jellyfish stats {}_0'.format(out_fn)
+    res = subprocess.check_output(cmd, shell=True)
+    return res
+
 def main() -> None:
     """Main function of this module"""
     # step 1: parse MS2Query file
@@ -100,19 +117,24 @@ def main() -> None:
     # step 6: function to visualize smiles
     #print each mass2Motif with information
     hello=[]
+    pdf=FPDF()
+    pdf.add_page()
+    out_file = open("output.txt", "w")
     for index, row in df_motifs_to_doc.iterrows():
-        print("\n")
-        print(index)
+        out_file.write("\n")
+        out_file.write("{0}\n".format(index))
         if index in df_motifs_to_frag.index.values.tolist():
-            print(df_motifs_to_frag.at[index, "Fragment+Probability"])
+            out_file.write("{0}\n".format(df_motifs_to_frag.at[index, "Fragment+Probability"]))
         else:
-            print("motif not in motifs_to_fragment")
-        print(df_motifs_to_doc.at[index, "Document"])  # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+            out_file.write("motif not in motifs_to_fragment\n")
+        out_file.write("{0}\n".format(df_motifs_to_doc.at[index, "Document"]))  # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
         hello.append(len(df_motifs_to_doc.at[index, "Document"]))
         for cell in row:
             if cell in df_smiles.index.values.tolist():
-                print(df_smiles.at[cell, "smiles"])
+                out_file.write("{0}\n".format(df_smiles.at[cell, "smiles"]))
                 visualize_mol(df_smiles.at[cell, "smiles"])
+                #visualize_on_command_line(img)
+    out_file.close()
 
 if __name__ == "__main__":
     main()
