@@ -119,22 +119,28 @@ def main() -> None:
     hello=[]
     pdf=FPDF()
     pdf.add_page()
-    out_file = open("output.txt", "w")
+    pdf.set_font("Arial", size=8)
+    i=1
     for index, row in df_motifs_to_doc.iterrows():
-        out_file.write("\n")
-        out_file.write("{0}\n".format(index))
+        i += 1
+        pdf.cell(200, 10, txt="{0}".format(index), ln=i, align = 'C')
+        i += 1
         if index in df_motifs_to_frag.index.values.tolist():
-            out_file.write("{0}\n".format(df_motifs_to_frag.at[index, "Fragment+Probability"]))
+            pdf.cell(200, 10, txt="{0}".format(df_motifs_to_frag.at[index, "Fragment+Probability"]), ln=i, align = 'C')
+            i += 1
         else:
-            out_file.write("motif not in motifs_to_fragment\n")
-        out_file.write("{0}\n".format(df_motifs_to_doc.at[index, "Document"]))  # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+            pdf.cell(200, 10, txt="motif not in motifs_to_fragment", ln=i, align = 'C')
+            i += 1
+        pdf.cell(200, 10, txt="{0}".format(df_motifs_to_doc.at[index, "Document"]), ln=i, align = 'C')
+        i+=1 # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
         hello.append(len(df_motifs_to_doc.at[index, "Document"]))
         for cell in row:
             if cell in df_smiles.index.values.tolist():
-                out_file.write("{0}\n".format(df_smiles.at[cell, "smiles"]))
-                visualize_mol(df_smiles.at[cell, "smiles"])
+                pdf.cell(200, 10, txt="{0}".format(df_smiles.at[cell, "smiles"]), ln=i, align = 'C')
+                i += 1
+                #visualize_mol(df_smiles.at[cell, "smiles"])
                 #visualize_on_command_line(img)
-    out_file.close()
+    pdf.output("output.pdf")
 
 if __name__ == "__main__":
     main()
