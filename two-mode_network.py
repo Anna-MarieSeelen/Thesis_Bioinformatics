@@ -72,6 +72,7 @@ def make_df_smiles(df_doc_to_smiles):
     return df_smiles
 
 def visualize_mol(smiles):
+    #TODO: doesn't work for some reason: cannot put it in pdf
     """
     function adapted from: https://pchanda.github.io/See-substructure-in-molecule/
     :param smiles:
@@ -82,7 +83,7 @@ def visualize_mol(smiles):
         return None
     Chem.Kekulize(mol)
     img = MolToImage(mol, size=(400, 400), fitImage=True)
-    return img
+    return img.show()
 
 def visualize_on_command_line(img):
     """Run jellyfish program on fasta file
@@ -138,7 +139,7 @@ def main() -> None:
             if cell in df_smiles.index.values.tolist():
                 pdf.cell(200, 10, txt="{0}".format(df_smiles.at[cell, "smiles"]), ln=i, align = 'C')
                 i += 1
-                #visualize_mol(df_smiles.at[cell, "smiles"])
+                pdf.image(visualize_mol(df_smiles.at[cell, "smiles"]))
                 #visualize_on_command_line(img)
     pdf.output("output.pdf")
 
