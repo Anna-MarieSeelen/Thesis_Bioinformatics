@@ -21,17 +21,19 @@ from rdkit.Chem.Draw import MolToImage
 from fpdf import FPDF
 
 # functions
-def connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv):
+def connection_Mass2Motifs_to_documents(path_file_with_MS2LDA_csv):
 
     #read both csv files into dataframe
-    df_MS2Query = pd.read_csv(path_to_file_with_MS2Query_csv, header=0)
     df_MS2LDA = pd.read_csv(path_file_with_MS2LDA_csv, header=0)
 
     #add Motif and Document number into 1 dataframe, but only include Motifs with more than 5 doc --> you will lose some doc
+    df_MS2LDA["Document+Probability+Overlap"] = df_MS2LDA[["Document", "Probability", "Overlap Score"]].values.tolist()
+    df_new2 = df_MS2LDA[["Motif", "Document+Probability+Overlap"]].groupby("Motif", as_index=True).aggregate({"Document+Probability+Overlap"})
+    #TODO: think about if this is even usefull to have in the document the prob and overlapscore
+    df_new2 = df_new2[df_new2["Document+Probability+Overlap"].str.len() >= 5]
     df_new=df_MS2LDA[["Motif","Document"]].groupby("Motif", as_index=True).aggregate({"Document":list})
     # we only want the motifs found in more than 5 spectra
     df_new=df_new[df_new['Document'].str.len() >= 5]
-    df_new2 = df_new["Document"]
     #https://stackoverflow.com/questions/58297277/how-to-get-a-length-of-lists-in-pandas-dataframe
     f = lambda x: 'document_{}'.format(x + 1)
     df= pd.DataFrame(df_new.Document.values.tolist(),df_new.index, dtype=object).fillna('').rename(columns=f)
@@ -51,14 +53,13 @@ def information_document_node(path_to_file_with_MS2Query_csv):
 def information_document_Mass2Motif_node(path_file_with_MS2LDA_csv_fragments):
     df_Motif_fragments= pd.read_csv(path_file_with_MS2LDA_csv_fragments, header=0)
     df_Motif_fragments["Fragment+Probability"]=df_Motif_fragments[["Feature", "Probability"]].values.tolist()
-    print(df_Motif_fragments)
     #.sort(key = lambda x: x[1], reverse=True)
     #https: // www.geeksforgeeks.org / python - sort - list - according - second - element - sublist /
     df_new = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif", as_index=True).aggregate({"Fragment+Probability": list})
-    print(df_new)
+    # TODO: adjust sorted thing here
+    #list.sort(key=lambda x: x[1], reverse=True
     # to defide the list of lists into more columns
     df_new2 = df_new["Fragment+Probability"]
-    print(df_new2)
     f = lambda x: 'fragment_{}+probability'.format(x + 1)
     df_new=df_new["Fragment+Probability"].apply(pd.Series).fillna('').rename(columns=f)
     # https://stackoverflow.com/questions/45107523/pandas-convert-list-of-lists-to-multiple-columns
@@ -115,35 +116,36 @@ def main() -> None:
     # step 3: input Mass2Motif fragments file
     path_file_with_Motif_fragments_csv = argv[3]
     # stept 3: put relevant info in new document
-    df_motifs_to_doc=connection_Mass2Motifs_to_documents(path_to_file_with_MS2Query_csv, path_file_with_MS2LDA_csv)
+    df_motifs_to_doc=connection_Mass2Motifs_to_documents(path_file_with_MS2LDA_csv)
     df_doc_to_smiles=information_document_node(path_to_file_with_MS2Query_csv)
     df_motifs_to_frag=information_document_Mass2Motif_node(path_file_with_Motif_fragments_csv)
     # step 5: make dataframe with only smiles
     df_smiles=make_df_smiles(df_doc_to_smiles)
-    # step 6: function to visualize smiles
+    #step 6: function to visualize smiles
     #print each mass2Motif with information
-    # hello=[]
-    # pdf=FPDF()
-    # pdf.add_page()
-    # pdf.set_font("helvetica", size=10)
-    # for index, row in df_motifs_to_doc.iterrows():
-    #     pdf.multi_cell(200,5, txt="\n", align = 'C')
-    #     pdf.set_font("helvetica", "B", size=10)
-    #     pdf.multi_cell(200, 5, txt="{0}\n".format(index), align = 'C')
-    #     pdf.set_font("helvetica", size=10)
-    #     if index in df_motifs_to_frag.index.values.tolist():
-    #     if index in df_motifs_to_frag.index.values.tolist():
-    #         pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_frag.at[index, "Fragment+Probability"]), align = 'L')
-    #     else:
-    #         pdf.multi_cell(200, 5, txt="motif not in motifs_to_fragment", align = 'L')
-    #     pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_doc.at[index, "Document"]), align = 'L') # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
-    #     hello.append(len(df_motifs_to_doc.at[index, "Document"]))
-    #     for cell in row:
-    #         if cell in df_smiles.index.values.tolist():
-    #             pdf.multi_cell(200, 10, txt="{0}\n".format(df_smiles.at[cell, "smiles"]), align = 'L')
-    #             #TODO: massa van de gevonden analogue erbij zetten
-    #             pdf.image(visualize_mol(df_smiles.at[cell, "smiles"]))
-    # pdf.output("output.pdf")
+    hello=[]
+    pdf=FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=10)
+    for index, row in df_motifs_to_doc.iterrows():
+        pdf.multi_cell(200,5, txt="\n", align = 'C')
+        pdf.set_font("helvetica", "B", size=10)
+        pdf.multi_cell(200, 5, txt="{0}\n".format(index), align = 'C')
+        pdf.set_font("helvetica", size=10)
+        #if index in df_motifs_to_frag.index.values.tolist():
+        if index in df_motifs_to_frag.index.values.tolist():
+            pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_frag.at[index, "Fragment+Probability"]), align = 'L')
+        else:
+            pdf.multi_cell(200, 5, txt="motif not in motifs_to_fragment", align = 'L')
+        pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_doc.at[index, "Document+Probability+Overlap"]), align = 'L') # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
+        hello.append(len(df_motifs_to_doc.at[index, "Document+Probability+Overlap"]))
+        for cell in row:
+            if cell in df_smiles.index.values.tolist():
+                pdf.multi_cell(200, 10, txt="{0}\n".format(df_smiles.at[cell, "smiles"]), align = 'L')
+                #TODO: massa van de gevonden analogue erbij zetten
+                pdf.image(visualize_mol(df_smiles.at[cell, "smiles"]))
+                #TODO:script: mass2motifs selecteren op de hoeveelheid smiles die er zijn gevonden ervan
+    pdf.output("output.pdf")
 
 if __name__ == "__main__":
     main()
