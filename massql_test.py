@@ -16,6 +16,7 @@ from massql import msql_engine
 from sys import argv
 import sys
 sys.path.insert(1, '/lustre/BIF/nobackup/seele006/MS2Query_search_libraries')
+#TODO: fix that it imports the file, because the massql function sucksss
 import ALL_GNPS_210409_positive_processed_annotated_CF_NPC_classes.txt
 import ntpath
 
