@@ -28,7 +28,7 @@ def connection_Mass2Motifs_to_documents(path_file_with_MS2LDA_csv):
 
     #add Motif and Document number into 1 dataframe, but only include Motifs with more than 5 doc --> you will lose some doc
     df_MS2LDA["Document+Probability+Overlap"] = df_MS2LDA[["Document", "Probability", "Overlap Score"]].values.tolist()
-    df_new2 = df_MS2LDA[["Motif", "Document+Probability+Overlap"]].groupby("Motif", as_index=True).aggregate({"Document+Probability+Overlap"})
+    df_new2 = df_MS2LDA[["Motif", "Document+Probability+Overlap"]].groupby("Motif", as_index=True).aggregate({"Document+Probability+Overlap":list})
     #TODO: think about if this is even usefull to have in the document the prob and overlapscore
     df_new2 = df_new2[df_new2["Document+Probability+Overlap"].str.len() >= 5]
     df_new=df_MS2LDA[["Motif","Document"]].groupby("Motif", as_index=True).aggregate({"Document":list})
@@ -44,8 +44,8 @@ def connection_Mass2Motifs_to_documents(path_file_with_MS2LDA_csv):
 def information_document_node(path_to_file_with_MS2Query_csv):
     df_MS2Query = pd.read_csv(path_to_file_with_MS2Query_csv, header=0)
     df_sub = df_MS2Query[df_MS2Query.ms2query_model_prediction > 0.7]
-    df_part=pd.DataFrame(df_sub[["query_spectrum_nr","ms2query_model_prediction", "precursor_mz_difference", "smiles" ]]).set_index("query_spectrum_nr")
-    df_new = pd.DataFrame(df_MS2Query[["query_spectrum_nr","precursor_mz_query_spectrum"]]).set_index("query_spectrum_nr")
+    df_part=pd.DataFrame(df_sub[["query_spectrum_nr", "precursor_mz_difference", "smiles" ]]).set_index("query_spectrum_nr")
+    df_new = pd.DataFrame(df_MS2Query[["query_spectrum_nr","precursor_mz_query_spectrum", "ms2query_model_prediction", "precursor_mz_analog"]]).set_index("query_spectrum_nr")
     df=pd.concat([df_new, df_part], axis=1).fillna('')
     return df
 
@@ -75,6 +75,7 @@ def make_df_smiles(df_doc_to_smiles):
         else:
             pass
     df_smiles = pd.DataFrame(data_smiles)
+    print(df_smiles)
     return df_smiles
 
 def visualize_mol(smiles):
@@ -117,17 +118,21 @@ def main() -> None:
     path_file_with_Motif_fragments_csv = argv[3]
     # stept 3: put relevant info in new document
     df_motifs_to_doc=connection_Mass2Motifs_to_documents(path_file_with_MS2LDA_csv)
+    print(df_motifs_to_doc)
     df_doc_to_smiles=information_document_node(path_to_file_with_MS2Query_csv)
+    print(df_doc_to_smiles)
     df_motifs_to_frag=information_document_Mass2Motif_node(path_file_with_Motif_fragments_csv)
     # step 5: make dataframe with only smiles
     df_smiles=make_df_smiles(df_doc_to_smiles)
     #step 6: function to visualize smiles
     #print each mass2Motif with information
-    hello=[]
+
     pdf=FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", size=10)
     for index, row in df_motifs_to_doc.iterrows():
+        print(row)
+        amount_of_documents = []
         pdf.multi_cell(200,5, txt="\n", align = 'C')
         pdf.set_font("helvetica", "B", size=10)
         pdf.multi_cell(200, 5, txt="{0}\n".format(index), align = 'C')
@@ -136,15 +141,28 @@ def main() -> None:
         if index in df_motifs_to_frag.index.values.tolist():
             pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_frag.at[index, "Fragment+Probability"]), align = 'L')
         else:
-            pdf.multi_cell(200, 5, txt="motif not in motifs_to_fragment", align = 'L')
+            pdf.multi_cell(200, 5, txt="motif does not have fragments with probability > 0.05", align = 'L')
+        pdf.multi_cell(200, 5, txt="[Document, probability, overlap score]\n", align='L')
         pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_doc.at[index, "Document+Probability+Overlap"]), align = 'L') # motif_398 is not in df_motifs_to_frag which is weird.... because GNPS and MS2LDA
-        hello.append(len(df_motifs_to_doc.at[index, "Document+Probability+Overlap"]))
+        pdf.multi_cell(200, 5, txt="amount of spectra associated with motif:{0}\n".format(len(df_motifs_to_doc.at[index, "Document+Probability+Overlap"])), align = 'L')
+        amount_of_smiles=0
         for cell in row:
             if cell in df_smiles.index.values.tolist():
-                pdf.multi_cell(200, 10, txt="{0}\n".format(df_smiles.at[cell, "smiles"]), align = 'L')
-                #TODO: massa van de gevonden analogue erbij zetten
-                pdf.image(visualize_mol(df_smiles.at[cell, "smiles"]))
+                if df_doc_to_smiles.at[cell, "smiles"] != "":
+                    amount_of_smiles+=1
+        for cell in row:
+            if isinstance(cell, int):
+                if amount_of_smiles>=2:
+                    if cell in df_doc_to_smiles.index.values.tolist():
+                        if df_doc_to_smiles.at[cell, "smiles"] != "":
+                            pdf.multi_cell(200, 10, txt="spectrum number:{0}, {1} m/z\n".format(cell, df_doc_to_smiles.at[cell, "precursor_mz_query_spectrum"]),align='L')
+                    if cell in df_smiles.index.values.tolist():
+                        pdf.multi_cell(200, 10, txt="{0} m/z\n".format(df_doc_to_smiles.at[cell, "precursor_mz_query_spectrum"]),align='L')
+                        pdf.image(visualize_mol(df_smiles.at[cell, "smiles"]))
+                        pdf.multi_cell(200, 10, txt="{0} m/z, prediction {1}\n".format(df_doc_to_smiles.at[cell, "precursor_mz_analog"], df_doc_to_smiles.at[cell, "ms2query_model_prediction"] ), align = 'L')
                 #TODO:script: mass2motifs selecteren op de hoeveelheid smiles die er zijn gevonden ervan
+            #if cell in df_motifs_to_doc.index.values.tolist():
+                #pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_doc.at[cell, "Document+Probability+Overlap"]), align='L')
     pdf.output("output.pdf")
 
 if __name__ == "__main__":
