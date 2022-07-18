@@ -29,8 +29,11 @@ def find(name, path):
             return os.path.join(root, name)
 
 def try_massql(query, file):
-    #sys.path.insert(1, '/lustre/BIF/nobackup/seele006/MS2Query_search_libraries')
+    #sys.path.insert(1, '/lustre/BIF/nobackup/seele006/MS2Query_search_libraries/')
+    # you can search an mgf file, so maybe you can search a mgf file of a mass spectral library, but then I also want
+    # the annotation, and you don't get that here...
     results=msql_engine.process_query(query,file)
+    print(results)
     return results
 
 def from_feather_to_df(results_feather):
@@ -42,14 +45,14 @@ def main():
     """Main function of this module"""
     # step 1: parse the protein sequence from file 1 and file 2 into dict
     path=argv[1]
-    name_file="FractionProfiling_RPOS_ToF10_PreCheck_LTR_01_DDA.mzML"
-    print(find(path, name_file))
+    #name_file="FractionProfiling_RPOS_ToF10_PreCheck_LTR_01_DDA.mzML"
+    #print(find(path, name_file))
     #head, tail = ntpath.split(argv[1])
     #path_to_file_with_GNPS_mass_library_txt = argv[1]
-    query=("QUERY scaninfo(MS2DATA) WHERE MS2NL=163")
+    query=("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 46.0050:TOLERANCEPPM=5")
     file = "FractionProfiling_RPOS_ToF10_PreCheck_LTR_01_DDA.mzML"
-    results_feather=try_massql(query, file)
-    from_feather_to_df(results_feather)
+    results_feather=try_massql(query, path)
+    #from_feather_to_df(results_feather)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ import pandas as pd
 import rdkit.Chem as Chem
 from rdkit.Chem.Draw import MolToImage
 from fpdf import FPDF
+import re
 
 # functions
 def connection_Mass2Motifs_to_documents(path_file_with_MS2LDA_csv: str) -> None:
@@ -119,6 +120,25 @@ def visualize_mol(smiles: str) -> None:
     img = MolToImage(mol, size=(200, 200), fitImage=True)
     return img
 
+def make_MassQL_search(fragments):
+    """
+
+    :param massql: we use ToF
+    :return:
+    """
+    # still not sure if you need MS1DATA or MS2DATA
+    query="QUERY scaninfo(MS1DATA) WHERE POLARITY = Positive "
+    for fragment in fragments:
+        for string in fragment:
+            if type(string)==str:
+                if re.search(r'loss', string) != None:
+                    query+="AND MS2NL = {0}:TOLERANCEPPM={1}".format(re.search(r'\_(.*)', string).group(1), 5)
+                else:
+                    query+="AND MS2PROD = {0}:TOLERANCEPPM={1} ".format(re.search(r'\_(.*)', string).group(1), 5)
+            else:
+                pass
+    return query
+
 def main() -> None:
     """Main function of this module"""
 
@@ -157,7 +177,12 @@ def main() -> None:
                 pdf.multi_cell(200, 5, txt="{0}\n".format(
                     sorted(df_motifs_to_frag.at[index, "Fragment+Probability"], key=lambda x: x[1], reverse=True)),
                                align='L')
-                # https: // www.geeksforgeeks.org / python - sort - list - according - second - element - sublist /
+                #https: // www.geeksforgeeks.org / python - sort - list - according - second - element - sublist /
+                print(df_motifs_to_frag.at[index, "Fragment+Probability"])
+                MassQL_query=make_MassQL_search(df_motifs_to_frag.at[index, "Fragment+Probability"])
+                print(MassQL_query)
+                pdf.multi_cell(200, 5, txt="MassQL query: {0}\n".format(MassQL_query),
+                               align='L')
             else:
                 pdf.multi_cell(200, 5, txt="motif does not have fragments with probability > 0.05", align = 'L')
             # print the "Document+probability+Overlap" column for the selected index, which is the selected Mass2Motif
@@ -194,6 +219,10 @@ def main() -> None:
                                 df_doc_to_smiles.at[cell, "precursor_mz_analog"],
                                 df_doc_to_smiles.at[cell, "ms2query_model_prediction"]), align='L')
     pdf.output("output.pdf")
+    # # TODO:verwerk de MassQL search hierin
+    # fragments=[['loss_85.0250', 0.725]]
+    # print(make_MassQL_search(fragments))
+
 
 if __name__ == "__main__":
     main()
