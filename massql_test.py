@@ -23,9 +23,9 @@ import pyarrow.feather as feather
 import os
 import pyteomics
 import re
-import rdkit.Chem as Chem
-from rdkit.Chem.Draw import MolToImage
-from fpdf import FPDF
+# import rdkit.Chem as Chem
+# from rdkit.Chem.Draw import MolToImage
+#from fpdf import FPDF
 
 # functions
 def find(name, path):
@@ -149,17 +149,17 @@ def main():
     #print(find(path, name_file))
     #head, tail = ntpath.split(argv[1])
     #path_to_file_with_GNPS_mass_library_txt = argv[1]
-    query=("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 46.0050:TOLERANCEPPM=5")
+    query=("QUERY scaninfo(MS1DATA) WHERE POLARITY = Positive AND MS1MZ = 667.12:TOLERANCEPPM=5")
     file = "FractionProfiling_RPOS_ToF10_PreCheck_LTR_01_DDA.mzML"
     results_feather=try_massql(query, path)
     #from_feather_to_df(results_feather)
     #read_mgf(path)
     parse_input(path)
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("helvetica", size=10)
-    pdf.image(visualize_mol("N[C@@H](CCCCNC(N)=O)C(O)=O"))
-    pdf.output("output.pdf")
+    # pdf = FPDF()
+    # pdf.add_page()
+    # pdf.set_font("helvetica", size=10)
+    # pdf.image(visualize_mol("N[C@@H](CCCCNC(N)=O)C(O)=O"))
+    # pdf.output("output.pdf")
 
 
 if __name__ == "__main__":
