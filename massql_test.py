@@ -26,35 +26,19 @@ import re
 # import rdkit.Chem as Chem
 # from rdkit.Chem.Draw import MolToImage
 #from fpdf import FPDF
+import json
+from pandas import json_normalize
+import pandas as pd
+import ast
+import subprocess
 
 # functions
-def find(name, path):
-    for root, dirs, files in os.walk(path):
-        if name in files:
-            return os.path.join(root, name)
 
 def try_massql(query, file):
-    #sys.path.insert(1, '/lustre/BIF/nobackup/seele006/MS2Query_search_libraries/')
-    # you can search an mgf file, so maybe you can search a mgf file of a mass spectral library, but then I also want
-    # the annotation, and you don't get that here...
-    results=msql_engine.process_query(query,file)
-    print(results)
-    return results
-
-def read_mgf(file):
-    reader=pyteomics.mgf.read_header(file)
-    print(reader)
-    # for i in reader.header.items:
-    #     print(i)
-    # for dic in reader.header.items:
-    #     for item in dic.items:
-    #         print(item)
-        # for i in reader:
-        # print(header(i))
-    #dic=pyteomics.mgf.IndexedMGF().read_header()
-    #dic=pyteomics.mgf.read_header(reader)
-    #print(spectrum)
-    #return spectrum
+    df=msql_engine.process_query(query,file)
+    df.rename(columns={'scan': 'spectrum_id'}, inplace=True)
+    df.set_index("spectrum_id", inplace=True, drop=True)
+    return df
 
 def parse_input(filename):
     """Parses argonaut formatted file to extract accession number, organism name and DNA_seq and stores those in dict.
@@ -120,6 +104,75 @@ def parse_input(filename):
             # gb_dict[key][last_key]+=line
     return None
 
+def read_json(json_file):
+    """
+
+    :param json_file:
+    :return:
+    """
+    with open(json_file, 'r') as f:
+        dict=json.load(f)
+    df=json_normalize(dict)
+    df.set_index("spectrum_id",inplace=True, drop=True)
+    #print(df.loc["CCMSLIB00004678842"])
+    #print(df.loc["CCMSLIB00000072521", "peaks_json"])
+    return df
+
+def new_dataframe(df_massql_matches,df_json):
+    """
+    Makes a dataframe with scan precmz smiles and
+    :return:
+    """
+    print(df_json.columns)
+    # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
+    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
+    # for some matches there are no smiles so remove those from the dataframe
+    df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
+    df.drop(df.index[df['Smiles'] == ' '], inplace=True)
+
+    return df
+
+def make_spectrum_file_for_id(df_json, spectrum_id):
+    """Takes a nested sorted list and outputs a tab delimited file
+
+    alignment_list: nested list with families and alignment lenghts
+    return: tab delimited text file with the contents of each sub list on a line
+    """
+    list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
+    print(list_of_lists)
+    # TODO: zorg dat dit allemaal naar Lustre gaat i.p.v. je home dir en zorg dat het dan ook goed gaat met de file names ik denk dat je gewoon: f = open('/tmp/generic.png','r')
+    spectrum_file=open("spectrum_file_{0}.txt".format(spectrum_id), "w")
+    for sub_list in list_of_lists:
+        spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
+        spectrum_file.write("\n")
+    spectrum_file.close()
+    return spectrum_file.name
+
+def annotate_peaks(spectrum_file, smiles):
+    """
+    Annotates the MS2 peaks given a smiles and a fragmentation spectrum
+    :return:
+    """
+    # print(df.loc["CCMSLIB00004678842"])
+    return None
+
+def annotate_peaks(spectrum_file_name, smiles, identifier, abs_mass_tol=0.01):
+    """
+    Annotates the MS2 peaks given a smiles and a fragmentation spectrum
+    :return:
+    """
+    # print(df.loc["CCMSLIB00004678842"])
+    # cfm-annotate.exe <smiles_or_inchi> <spectrum_file> **<id>** <ppm_mass_tol> <abs_mass_tol> 0.01<param_file> <config_file> <output_file
+    out_fn = "cfm_annotation_out_{0}".format(identifier)
+    if os.path.exists(out_fn):
+        return out_fn
+    cmd = 'cfm-annotate.exe {0} {1} -abs_mass_tol {2} -output_file {4}' \
+            .format(smiles, spectrum_file_name, abs_mass_tol, out_fn)
+    e = subprocess.check_call(cmd, shell=True)
+    print("EXIT STATUS AND TYPE", e, type(e))
+    print("hi")
+    return out_fn
+
 def visualize_mol(smiles: str) -> None:
     """
     Takes a smiles as input and outputs an PIL<PNG> image
@@ -136,25 +189,34 @@ def visualize_mol(smiles: str) -> None:
     img = MolToImage(mol, size=(200, 200), fitImage=True)
     return img
 
-def from_feather_to_df(results_feather):
-    read_df = feather.read_feather(results_feather)
-    print(read_df)
-    return read_df
+def select_annotated_peaks():
+    """
+    Selection of the annotated peaks that are relevant for the mass2motif
+    #TODO: think about how you will do this for neutral loss...
+    :return:
+    """
+    return None
 
 def main():
     """Main function of this module"""
-    # step 1: parse the protein sequence from file 1 and file 2 into dict
-    path=argv[1]
-    #name_file="FractionProfiling_RPOS_ToF10_PreCheck_LTR_01_DDA.mzML"
-    #print(find(path, name_file))
-    #head, tail = ntpath.split(argv[1])
-    #path_to_file_with_GNPS_mass_library_txt = argv[1]
-    query=("QUERY scaninfo(MS1DATA) WHERE POLARITY = Positive AND MS1MZ = 667.12:TOLERANCEPPM=5")
-    file = "FractionProfiling_RPOS_ToF10_PreCheck_LTR_01_DDA.mzML"
-    results_feather=try_massql(query, path)
-    #from_feather_to_df(results_feather)
-    #read_mgf(path)
-    parse_input(path)
+    path_to_json_file = argv[1]
+    query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2MZ = 667.12:TOLERANCEMZ=0.01")
+    # step 1: parse json file
+    df_json=read_json(path_to_json_file)
+    # step 2: search query in json file with MassQL
+    df_massql_matches=try_massql(query, path_to_json_file)
+    # step 3: get the smiles for every match of MassQL
+    df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
+    # step 4: print a spectrum file for a match
+    #for identifier in list(index_smiles)
+        #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
+        #make_spectrum_file_for_id(list_of_lists, identifier)
+    identifier="CCMSLIB00006126912"
+    spectrum_file_name=make_spectrum_file_for_id(df_json, identifier)
+    smiles=df_matches_and_smiles.loc[identifier, "Smiles"]
+    annotate_peaks(spectrum_file_name, smiles)
+
+    #Make PDF
     # pdf = FPDF()
     # pdf.add_page()
     # pdf.set_font("helvetica", size=10)
