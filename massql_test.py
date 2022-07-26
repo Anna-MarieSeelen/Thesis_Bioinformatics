@@ -18,7 +18,6 @@ import sys
 #TODO: fix that it imports the file, because the massql function sucksss
 #import ALL_GNPS_210409_positive_processed_annotated_CF_NPC_classes.txt
 import ntpath
-from pathlib import Path
 import pyarrow.feather as feather
 import os
 import pyteomics
@@ -31,6 +30,7 @@ from pandas import json_normalize
 import pandas as pd
 import ast
 import subprocess
+from pathlib import Path
 
 # functions
 
@@ -141,7 +141,8 @@ def make_spectrum_file_for_id(df_json, spectrum_id):
     list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
     print(list_of_lists)
     # TODO: zorg dat dit allemaal naar Lustre gaat i.p.v. je home dir en zorg dat het dan ook goed gaat met de file names ik denk dat je gewoon: f = open('/tmp/generic.png','r')
-    spectrum_file=open("spectrum_file_{0}.txt".format(spectrum_id), "w")
+    file_path = Path(r"/lustre/BIF/nobackup/seele006/spectrum_file_{0}.txt".format(spectrum_id))
+    spectrum_file=open(file_path, "w")
     for sub_list in list_of_lists:
         spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
         spectrum_file.write("\n")
@@ -163,6 +164,7 @@ def annotate_peaks(spectrum_file_name, smiles, identifier, abs_mass_tol=0.01):
     """
     # print(df.loc["CCMSLIB00004678842"])
     # cfm-annotate.exe <smiles_or_inchi> <spectrum_file> **<id>** <ppm_mass_tol> <abs_mass_tol> 0.01<param_file> <config_file> <output_file
+    file_path_out = Path(r"/lustre/BIF/nobackup/seele006/cfm_annotation_out_{0}".format(identifier))
     out_fn = "cfm_annotation_out_{0}".format(identifier)
     if os.path.exists(out_fn):
         return out_fn
