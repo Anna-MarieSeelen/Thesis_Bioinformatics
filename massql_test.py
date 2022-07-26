@@ -132,7 +132,7 @@ def new_dataframe(df_massql_matches,df_json):
 
     return df
 
-def make_spectrum_file_for_id(df_json, spectrum_id):
+def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
     """Takes a nested sorted list and outputs a tab delimited file
 
     alignment_list: nested list with families and alignment lenghts
@@ -140,14 +140,17 @@ def make_spectrum_file_for_id(df_json, spectrum_id):
     """
     list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
     print(list_of_lists)
-    # TODO: zorg dat dit allemaal naar Lustre gaat i.p.v. je home dir en zorg dat het dan ook goed gaat met de file names ik denk dat je gewoon: f = open('/tmp/generic.png','r')
-    file_path = Path(r"/lustre/BIF/nobackup/seele006/spectrum_file_{0}.txt".format(spectrum_id))
+    file_path = Path(r"{0}/spectrum_file_{1}.txt".format(path_to_store_spectrum_files,spectrum_id))
+    if os.path.exists(file_path):
+        print(os.path.abspath(file_path))
+        return os.path.abspath(file_path)
     spectrum_file=open(file_path, "w")
     for sub_list in list_of_lists:
         spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
         spectrum_file.write("\n")
     spectrum_file.close()
-    return spectrum_file.name
+    print(os.path.abspath(file_path))
+    return os.path.abspath(file_path)
 
 def annotate_peaks(spectrum_file, smiles):
     """
@@ -214,9 +217,10 @@ def main():
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
     identifier="CCMSLIB00006126912"
-    spectrum_file_name=make_spectrum_file_for_id(df_json, identifier)
+    path_to_store_spectrum_files=argv[2]
+    spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
     smiles=df_matches_and_smiles.loc[identifier, "Smiles"]
-    annotate_peaks(spectrum_file_name, smiles)
+    #annotate_peaks(spectrum_file_name, smiles)
 
     #Make PDF
     # pdf = FPDF()
