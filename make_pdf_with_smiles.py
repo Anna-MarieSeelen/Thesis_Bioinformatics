@@ -127,14 +127,14 @@ def make_MassQL_search(fragments):
     :return:
     """
     # still not sure if you need MS1DATA or MS2DATA
-    query="QUERY scaninfo(MS1DATA) WHERE POLARITY = Positive "
+    query="QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive " #MS1DATA doesn't work give any results, so MS2DATA it is
     for fragment in fragments:
         for string in fragment:
             if type(string)==str:
                 if re.search(r'loss', string) != None:
-                    query+="AND MS2NL = {0}:TOLERANCEPPM={1}".format(re.search(r'\_(.*)', string).group(1), 5)
+                    query+="AND MS2NL = {0}:TOLERANCEMZ={1}".format(re.search(r'\_(.*)', string).group(1), 0.01)
                 else:
-                    query+="AND MS2PROD = {0}:TOLERANCEPPM={1} ".format(re.search(r'\_(.*)', string).group(1), 5)
+                    query+="AND MS2PROD = {0}:TOLERANCEMZ={1} ".format(re.search(r'\_(.*)', string).group(1), 0.01)
             else:
                 pass
     return query
