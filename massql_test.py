@@ -123,13 +123,12 @@ def new_dataframe(df_massql_matches,df_json):
     Makes a dataframe with scan precmz smiles and
     :return:
     """
-    print(df_json.columns)
     # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
     df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
     # for some matches there are no smiles so remove those from the dataframe
     df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
     df.drop(df.index[df['Smiles'] == ' '], inplace=True)
-
+    print(df)
     return df
 
 def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
@@ -139,17 +138,18 @@ def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files
     return: tab delimited text file with the contents of each sub list on a line
     """
     list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
-    print(list_of_lists)
     file_path = Path(r"{0}/spectrum_file_{1}.txt".format(path_to_store_spectrum_files,spectrum_id))
     if os.path.exists(file_path):
         print(os.path.abspath(file_path))
         return os.path.abspath(file_path)
     spectrum_file=open(file_path, "w")
+    spectrum_file.write("energy0\n")
     for sub_list in list_of_lists:
         spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
         spectrum_file.write("\n")
     spectrum_file.close()
     print(os.path.abspath(file_path))
+
     return os.path.abspath(file_path)
 
 def annotate_peaks(spectrum_file, smiles):
@@ -157,7 +157,7 @@ def annotate_peaks(spectrum_file, smiles):
     Annotates the MS2 peaks given a smiles and a fragmentation spectrum
     :return:
     """
-    # print(df.loc["CCMSLIB00004678842"])
+    #print(df.loc["CCMSLIB00006126912"])
     return None
 
 def annotate_peaks(spectrum_file_name, smiles, identifier, abs_mass_tol=0.01):
@@ -219,7 +219,7 @@ def main():
     identifier="CCMSLIB00006126912"
     path_to_store_spectrum_files=argv[2]
     spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
-    smiles=df_matches_and_smiles.loc[identifier, "Smiles"]
+    print(df_matches_and_smiles.loc[identifier, "Smiles"])
     #annotate_peaks(spectrum_file_name, smiles)
 
     #Make PDF
