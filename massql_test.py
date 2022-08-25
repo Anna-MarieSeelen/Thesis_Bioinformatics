@@ -31,8 +31,16 @@ import pandas as pd
 import ast
 import subprocess
 from pathlib import Path
+import re
+import os, glob
 
 # functions
+
+def parse_line_with_motifs_and_querries(line):
+    motif=re.search(r'(.*)    (.*)    (.*)', line).group(1)
+    fragments=re.search(r'(.*)    (.*)    (.*)', line).group(2)
+    query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
+    return motif,fragments,query
 
 def try_massql(query, file):
     df=msql_engine.process_query(query,file)
@@ -194,40 +202,59 @@ def visualize_mol(smiles: str) -> None:
     img = MolToImage(mol, size=(200, 200), fitImage=True)
     return img
 
-def select_annotated_peaks():
+def look_for(cfm_file,motif,fragments):
     """
+    # First parse the cfm_file because you only want the middle part
+    #Then for each fragment of the motif you want you want to select the smiles
     Selection of the annotated peaks that are relevant for the mass2motif
     #TODO: think about how you will do this for neutral loss...
     :return:
     """
     return None
 
+def select_the_most_likely_option_for_one_motif():
+    #look through all the possible smiles for a fragment and select the one that is there most often
+    # return the motif with the with fragment, probability and most likely smiles
+    return None
+
+def delete_files(path_to_store_spectrum_files):
+    for file in os.scandir(path_to_store_spectrum_files):
+        os.remove(file.path)
+    return None
+
 def main():
     """Main function of this module"""
-    path_to_json_file = argv[1]
-    query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2MZ = 667.12:TOLERANCEMZ=0.01")
-    # step 1: parse json file
-    df_json=read_json(path_to_json_file)
-    # step 2: search query in json file with MassQL
-    df_massql_matches=try_massql(query, path_to_json_file)
-    # step 3: get the smiles for every match of MassQL
-    df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
-    # step 4: print a spectrum file for a match
-    #for identifier in list(index_smiles)
+    path_to_json_file = argv[2]
+    filename=str(argv[1])
+    path_to_store_spectrum_files = argv[3]
+    #query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2MZ = 667.12:TOLERANCEMZ=0.01")
+    # step 0: parse input line
+    lines = (open(filename))
+    for line in lines:
+        line = line.strip()
+        line = line.replace('\n', '')
+        motif, fragments, query=parse_line_with_motifs_and_querries(line)
+        # step 1: parse json file
+        df_json=read_json(path_to_json_file)
+        # step 2: search query in json file with MassQL
+        df_massql_matches=try_massql(query, path_to_json_file)
+        # step 3: get the smiles for every match of MassQL
+        df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
+        # step 4: print a spectrum file for a match
+        #for identifier in list(index_smiles)
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
-    identifier="CCMSLIB00006126912"
-    path_to_store_spectrum_files=argv[2]
-    spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
-    print(df_matches_and_smiles.loc[identifier, "Smiles"])
-    #annotate_peaks(spectrum_file_name, smiles)
-
-    #Make PDF
-    # pdf = FPDF()
-    # pdf.add_page()
-    # pdf.set_font("helvetica", size=10)
-    # pdf.image(visualize_mol("N[C@@H](CCCCNC(N)=O)C(O)=O"))
-    # pdf.output("output.pdf")
+        identifier="CCMSLIB00010012005"
+        spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
+        print(df_matches_and_smiles.loc[identifier, "Smiles"])
+        # make a huge list for each of the motifs containing the possible smiles per fragments
+        #annotate_peaks(spectrum_file_name, smiles)
+        #Make PDF
+        # pdf = FPDF()
+        # pdf.add_page()
+        # pdf.set_font("helvetica", size=10)
+        # pdf.image(visualize_mol("N[C@@H](CCCCNC(N)=O)C(O)=O"))
+        # pdf.output("output.pdf")
 
 
 if __name__ == "__main__":
