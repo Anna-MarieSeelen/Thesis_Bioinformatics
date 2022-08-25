@@ -151,10 +151,11 @@ def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files
         print(os.path.abspath(file_path))
         return os.path.abspath(file_path)
     spectrum_file=open(file_path, "w")
-    spectrum_file.write("energy0\n")
-    for sub_list in list_of_lists:
-        spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
-        spectrum_file.write("\n")
+    for i in range(3):
+        spectrum_file.write("energy{0}\n".format(i))
+        for sub_list in list_of_lists:
+            spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
+            spectrum_file.write("\n")
     spectrum_file.close()
     print(os.path.abspath(file_path))
 
@@ -227,13 +228,13 @@ def main():
     path_to_json_file = argv[2]
     filename=str(argv[1])
     path_to_store_spectrum_files = argv[3]
-    #query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2MZ = 667.12:TOLERANCEMZ=0.01")
     # step 0: parse input line
     lines = (open(filename))
     for line in lines:
         line = line.strip()
         line = line.replace('\n', '')
         motif, fragments, query=parse_line_with_motifs_and_querries(line)
+        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2MZ = 667.12:TOLERANCEMZ=0.01")
         # step 1: parse json file
         df_json=read_json(path_to_json_file)
         # step 2: search query in json file with MassQL
@@ -244,7 +245,7 @@ def main():
         #for identifier in list(index_smiles)
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
-        identifier="CCMSLIB00010012005"
+        identifier="CCMSLIB00000424797"
         spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
         print(df_matches_and_smiles.loc[identifier, "Smiles"])
         # make a huge list for each of the motifs containing the possible smiles per fragments
