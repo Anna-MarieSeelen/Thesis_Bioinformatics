@@ -179,8 +179,8 @@ def annotate_peaks(spectrum_file_name, smiles, identifier, abs_mass_tol=0.01):
     out_fn = "cfm_annotation_out_{0}".format(identifier)
     if os.path.exists(out_fn):
         return out_fn
-    cmd = 'cfm-annotate.exe {0} {1} -abs_mass_tol {2} -output_file {4}' \
-            .format(smiles, spectrum_file_name, abs_mass_tol, out_fn)
+    cmd = 'cfm-annotate \'{0}\' {1} {2} -abs_mass_tol {3} -output_file {4}' \
+            .format(smiles, spectrum_file_name, identifier, abs_mass_tol, out_fn)
     e = subprocess.check_call(cmd, shell=True)
     print("EXIT STATUS AND TYPE", e, type(e))
     print("hi")
