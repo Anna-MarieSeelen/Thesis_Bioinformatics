@@ -33,6 +33,9 @@ import subprocess
 from pathlib import Path
 import re
 import os, glob
+import matchms
+from matchms import Scores, Spectrum
+from matchms import Fragments
 
 # functions
 
@@ -160,7 +163,27 @@ def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files
     spectrum_file.close()
     print(os.path.abspath(file_path))
 
-    return os.path.abspath(file_path)
+def make_spectrum_file_for_id_matchms(gnps_pickled_lib, spectrum_id, path_to_store_spectrum_files):
+    #object=list(matchms.importing.load_scores.scores_from_pickle(gnps_pickled_lib))
+    obj = pd.read_pickle(gnps_pickled_lib)
+    # with open(gnps_pickled_lib, 'r') as f:
+    #     spectra=pickletools.(f)
+    # spectra=gnps_pickled_libS
+    # print(spectra.peaks.mz[0])
+    for spectrum in obj:
+        if spectrum.get("spectrumid") == spectrum_id:
+            file_path = Path(r"{0}/spectrum_file_{1}_new.txt".format(path_to_store_spectrum_files, spectrum_id))
+            print(os.path.abspath(file_path))
+            spectrum_file=open(file_path, "w")
+            for i in range(3):
+                spectrum_file.write("energy{0}\n".format(i))
+                for fragment in range(len(spectrum.peaks.mz)):
+                    spectrum_file.write("{0} {1}".format(spectrum.peaks.mz[fragment], spectrum.peaks.intensities[fragment]))
+                    spectrum_file.write("\n")
+            spectrum_file.close()
+    #object=list(matchms.importing.load_from_pickle)
+    #print(object)
+    return None
 
 def annotate_peaks(spectrum_file, smiles):
     """
@@ -249,6 +272,8 @@ def main():
         identifier="CCMSLIB00000001645"
         spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
         print(df_matches_and_smiles.loc[identifier, "Smiles"])
+        gnps_pickled_lib=argv[4]
+        make_spectrum_file_for_id_matchms(gnps_pickled_lib, identifier, path_to_store_spectrum_files)
         # make a huge list for each of the motifs containing the possible smiles per fragments
         #annotate_peaks(spectrum_file_name, smiles)
         #Make PDF
