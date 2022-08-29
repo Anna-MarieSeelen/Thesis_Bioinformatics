@@ -43,19 +43,55 @@ def parse_line_with_motifs_and_querries(line):
     query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
     return motif,fragments,query
 
+import json
+from typing import List
+import numpy
+from ..Spectrum import Spectrum
+
+def save_as_json(spectrums: List[Spectrum], filename: str):
+    """Save spectrum(s) as json file.
+    :py:attr:`~matchms.Spectrum.losses` of spectrum will not be saved.
+    Arguments:
+    ----------
+    spectrums:
+        Expected input are match.Spectrum.Spectrum() objects.
+    filename:
+        Provide filename to save spectrum(s).
+    """
+    if not isinstance(spectrums, list):
+        # Assume that input was single Spectrum
+        spectrums = [spectrums]
+
+    # Write to json file
+    with open(filename, 'w') as fout:
+        fout.write("[")
+        for i, spectrum in enumerate(spectrums):
+            spec = spectrum.clone()
+            peaks_list = numpy.vstack((spec.peaks.mz, spec.peaks.intensities)).T.tolist()
+
+            # Convert matchms.Spectrum() into dictionaries
+            spectrum_dict = {key: spec.metadata[key] for key in spec.metadata}
+            spectrum_dict["peaks_json"] = peaks_list
+
+            json.dump(spectrum_dict, fout)
+            if i < len(spectrums) - 1:
+                fout.write(",")
+        fout.write("]")
+
 def make_json_file(pickle_file, path_to_store_json_file):
     # if os.path.exists(path_to_store_json_file):
     #      print(os.path.abspath(path_to_store_json_file))
-    #spectrum.todict[peaks-json]
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
+        spectrum=spectrum.to_dict()
         spectrum_list.append(spectrum)
+    #print(spectrum.peaks)
+    #print(spectrum.get['peaks_json'])
     matchms.exporting.save_as_json(spectrum_list,path_to_store_json_file)
     return None
 
 def try_massql(query, json_file):
-    print(type(json_file))
     df=msql_engine.process_query(query,json_file)
     df.rename(columns={'scan': 'spectrum_id'}, inplace=True)
     df.set_index("spectrum_id", inplace=True, drop=True)
@@ -146,10 +182,10 @@ def new_dataframe(df_massql_matches,df_json):
     :return:
     """
     # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
-    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
+    df=pd.merge(df_massql_matches["precmz"],df_json[["precursor_mz","smiles", "peaks_json"]],left_index=True, right_index=True)
     # for some matches there are no smiles so remove those from the dataframe
-    df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
-    df.drop(df.index[df['Smiles'] == ' '], inplace=True)
+    df.drop(df.index[df['smiles'] == 'N/A'], inplace=True)
+    df.drop(df.index[df['smiles'] == ' '], inplace=True)
     print(df)
     return df
 
