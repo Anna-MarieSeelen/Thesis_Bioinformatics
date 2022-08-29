@@ -45,6 +45,8 @@ def parse_line_with_motifs_and_querries(line):
     return motif,fragments,query
 
 def make_json_file(pickle_file, path_to_store_json_file):
+    # if os.path.exists(path_to_store_json_file):
+    #      print(os.path.abspath(path_to_store_json_file))
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
@@ -53,6 +55,7 @@ def make_json_file(pickle_file, path_to_store_json_file):
     return None
 
 def try_massql(query, json_file):
+    print(type(json_file))
     df=msql_engine.process_query(query,json_file)
     df.rename(columns={'scan': 'spectrum_id'}, inplace=True)
     df.set_index("spectrum_id", inplace=True, drop=True)
@@ -131,8 +134,8 @@ def read_json(json_file):
     with open(json_file, 'r') as f:
         dict=json.load(f)
     df=json_normalize(dict)
-    print(df.head)
-    df.set_index("spectrum_id",inplace=True, drop=True)
+    print(df.columns)
+    df.set_index("spectrumid",inplace=True, drop=True)
     #print(df.loc["CCMSLIB00004678842"])
     #print(df.loc["CCMSLIB00000072521", "peaks_json"])
     return df
