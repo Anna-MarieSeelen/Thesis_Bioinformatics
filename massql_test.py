@@ -35,7 +35,6 @@ import re
 import os, glob
 import matchms
 from matchms import Scores, Spectrum
-from matchms import Fragments
 
 # functions
 
