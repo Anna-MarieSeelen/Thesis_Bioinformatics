@@ -15,7 +15,6 @@ Usage: python3 *name_of_script* *name_input_file* [*output_file*] [gap_penalty]
 from massql import msql_engine
 from sys import argv
 import sys
-#TODO: fix that it imports the file, because the massql function sucksss
 #import ALL_GNPS_210409_positive_processed_annotated_CF_NPC_classes.txt
 import ntpath
 import pyarrow.feather as feather
@@ -47,6 +46,7 @@ def parse_line_with_motifs_and_querries(line):
 def make_json_file(pickle_file, path_to_store_json_file):
     # if os.path.exists(path_to_store_json_file):
     #      print(os.path.abspath(path_to_store_json_file))
+    #spectrum.todict[peaks-json]
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
