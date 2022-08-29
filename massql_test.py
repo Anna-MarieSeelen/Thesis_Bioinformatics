@@ -131,6 +131,7 @@ def read_json(json_file):
     with open(json_file, 'r') as f:
         dict=json.load(f)
     df=json_normalize(dict)
+    print(df.head)
     df.set_index("spectrum_id",inplace=True, drop=True)
     #print(df.loc["CCMSLIB00004678842"])
     #print(df.loc["CCMSLIB00000072521", "peaks_json"])
