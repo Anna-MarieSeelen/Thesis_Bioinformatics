@@ -49,8 +49,8 @@ def make_json_file(pickle_file, path_to_store_json_file):
     spectrum_list=[]
     for spectrum in obj:
         spectrum_list.append(spectrum)
-    json_file=matchms.exporting.save_as_json(spectrum_list,path_to_store_json_file)
-    return json_file
+    matchms.exporting.save_as_json(spectrum_list,path_to_store_json_file)
+    return None
 
 def try_massql(query, json_file):
     df=msql_engine.process_query(query,json_file)
@@ -260,7 +260,7 @@ def main():
     filename=argv[1]
     path_to_store_spectrum_files = argv[3]
     path_to_store_json_file=argv[4]
-    json_file=make_json_file(path_to_pickle_file, path_to_store_json_file)
+    make_json_file(path_to_pickle_file, path_to_store_json_file)
     # step 0: parse input line
     lines = (open(filename))
     for line in lines:
@@ -269,9 +269,9 @@ def main():
         motif, fragments, query=parse_line_with_motifs_and_querries(line)
         query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 68.0275:TOLERANCEMZ=0.01 AND MS2PROD = 85.0250:TOLERANCEMZ=0.01 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01")
         # step 1: parse json file
-        df_json=read_json(json_file)
+        df_json=read_json(path_to_store_json_file)
         # step 2: search query in json file with MassQL
-        df_massql_matches=try_massql(query, json_file)
+        df_massql_matches=try_massql(query, path_to_store_json_file)
         # step 3: get the smiles for every match of MassQL
         df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
         # step 4: print a spectrum file for a match
