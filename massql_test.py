@@ -45,8 +45,16 @@ def parse_line_with_motifs_and_querries(line):
     query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
     return motif,fragments,query
 
-def try_massql(query, file):
-    df=msql_engine.process_query(query,file)
+def make_json_file(pickle_file, path_to_store_json_file):
+    obj = pd.read_pickle(pickle_file)
+    spectrum_list=[]
+    for spectrum in obj:
+        spectrum_list.append(spectrum)
+    json_file=matchms.exporting.save_as_json(spectrum_list,path_to_store_json_file)
+    return json_file
+
+def try_massql(query, json_file):
+    df=msql_engine.process_query(query,json_file)
     df.rename(columns={'scan': 'spectrum_id'}, inplace=True)
     df.set_index("spectrum_id", inplace=True, drop=True)
     return df
@@ -249,9 +257,11 @@ def delete_files(path_to_store_spectrum_files):
 
 def main():
     """Main function of this module"""
-    path_to_json_file = argv[2]
-    filename=str(argv[1])
+    path_to_pickle_file = argv[2]
+    filename=argv[1]
     path_to_store_spectrum_files = argv[3]
+    path_to_store_json_file=argv[4]
+    json_file=make_json_file(path_to_pickle_file, path_to_store_json_file)
     # step 0: parse input line
     lines = (open(filename))
     for line in lines:
@@ -260,9 +270,9 @@ def main():
         motif, fragments, query=parse_line_with_motifs_and_querries(line)
         query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 68.0275:TOLERANCEMZ=0.01 AND MS2PROD = 85.0250:TOLERANCEMZ=0.01 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01")
         # step 1: parse json file
-        df_json=read_json(path_to_json_file)
+        df_json=read_json(json_file)
         # step 2: search query in json file with MassQL
-        df_massql_matches=try_massql(query, path_to_json_file)
+        df_massql_matches=try_massql(query, json_file)
         # step 3: get the smiles for every match of MassQL
         df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
         # step 4: print a spectrum file for a match
@@ -271,9 +281,8 @@ def main():
         #make_spectrum_file_for_id(list_of_lists, identifier)
         identifier="CCMSLIB00000001645"
         spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
-        print(df_matches_and_smiles.loc[identifier, "Smiles"])
-        gnps_pickled_lib=argv[4]
-        make_spectrum_file_for_id_matchms(gnps_pickled_lib, identifier, path_to_store_spectrum_files)
+        #print(df_matches_and_smiles.loc[identifier, "Smiles"])
+        #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
         # make a huge list for each of the motifs containing the possible smiles per fragments
         #annotate_peaks(spectrum_file_name, smiles)
         #Make PDF
