@@ -92,7 +92,9 @@ def make_json_file(pickle_file, path_to_store_json_file):
     return None
 
 def try_massql(query, json_file):
+    print(query)
     df=msql_engine.process_query(query,json_file)
+    print(df)
     df.rename(columns={'scan': 'spectrum_id'}, inplace=True)
     df.set_index("spectrum_id", inplace=True, drop=True)
     return df
@@ -187,7 +189,8 @@ def new_dataframe(df_massql_matches,df_json):
     # for some matches there are no smiles so remove those from the dataframe
     df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
     df.drop(df.index[df['Smiles'] == ' '], inplace=True)
-    print(df)
+    for index, row in df.iterrows():
+        print(df.at[index,"Smiles"])
     return df
 
 def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
@@ -309,7 +312,7 @@ def main():
         line = line.strip()
         line = line.replace('\n', '')
         motif, fragments, query=parse_line_with_motifs_and_querries(line)
-        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 68.0275:TOLERANCEMZ=0.01 AND MS2PROD = 85.0250:TOLERANCEMZ=0.01 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01")
+        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 85.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 68.0275:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.186:INTENSITYMATCHPERCENT=99 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.156:INTENSITYMATCHPERCENT=99")
         # step 1: parse json file
         df_json=read_json(path_to_json_file)
         # step 2: search query in json file with MassQL
