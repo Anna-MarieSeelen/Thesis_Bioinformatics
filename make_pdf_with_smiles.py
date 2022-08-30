@@ -161,9 +161,9 @@ def make_MassQL_search(fragments: list) -> str:
             else:
                 if type(string)==str:
                     if re.search(r'loss', string) != None:
-                        query+="AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],50)
+                        query+="AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],99)
                     else:
-                        query+="AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],50)
+                        query+="AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],99)
                 else:
                     pass
     print(query)
