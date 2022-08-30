@@ -138,15 +138,35 @@ def make_MassQL_search(fragments: list) -> str:
     :return: str, the corresponding MassQL query
     """
     query="QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive " #MS1DATA doesn't give any results, so MS2DATA it is
-    for fragment in fragments:
+    fragments=sorted(fragments, key = lambda x: x[1], reverse=True)
+    print(fragments)
+    fragments_rel_intensity=list(map(list, fragments)) # to make a copy, but not a reference of fragments
+    for i in range(len(fragments_rel_intensity)):
+        if i==0:
+            fragments_rel_intensity[i][1]=1.0
+        else:
+            fragments_rel_intensity[i][1]=round(fragments[i][1]/fragments[0][1],3)
+    print(fragments_rel_intensity)
+    for fragment in fragments_rel_intensity:
         for string in fragment:
-            if type(string)==str:
-                if re.search(r'loss', string) != None:
-                    query+="AND MS2NL = {0}:TOLERANCEMZ={1}".format(re.search(r'\_(.*)', string).group(1), 0.01)
+            if fragment[1]==1.0:
+                if type(string) == str:
+                    if re.search(r'loss', string) != None:
+                        query += "AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE ".format(re.search(r'\_(.*)', string).group(1), 0.01)
+                    else:
+                        query += "AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE ".format(re.search(r'\_(.*)', string).group(1),
+                                                                             0.01)
                 else:
-                    query+="AND MS2PROD = {0}:TOLERANCEMZ={1} ".format(re.search(r'\_(.*)', string).group(1), 0.01)
+                    pass
             else:
-                pass
+                if type(string)==str:
+                    if re.search(r'loss', string) != None:
+                        query+="AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],20)
+                    else:
+                        query+="AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],20)
+                else:
+                    pass
+    print(query)
     return query
 
 def make_file_with_massql_querries(df_motifs_to_frag: pd.DataFrame, list_of_selected_motifs: list) -> str:
