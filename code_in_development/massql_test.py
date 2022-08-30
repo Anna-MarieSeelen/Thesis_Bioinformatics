@@ -34,6 +34,10 @@ import re
 import os, glob
 import matchms
 from matchms import Scores, Spectrum
+import json
+from typing import List
+import numpy
+from matchms import Spectrum
 
 # functions
 
@@ -42,11 +46,6 @@ def parse_line_with_motifs_and_querries(line):
     fragments=re.search(r'(.*)    (.*)    (.*)', line).group(2)
     query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
     return motif,fragments,query
-
-import json
-from typing import List
-import numpy
-from ..Spectrum import Spectrum
 
 def save_as_json(spectrums: List[Spectrum], filename: str):
     """Save spectrum(s) as json file.
@@ -67,11 +66,15 @@ def save_as_json(spectrums: List[Spectrum], filename: str):
         fout.write("[")
         for i, spectrum in enumerate(spectrums):
             spec = spectrum.clone()
-            peaks_list = numpy.vstack((spec.peaks.mz, spec.peaks.intensities)).T.tolist()
+            peaks_list = str(numpy.vstack((spec.peaks.mz, spec.peaks.intensities)).T.tolist())
 
             # Convert matchms.Spectrum() into dictionaries
             spectrum_dict = {key: spec.metadata[key] for key in spec.metadata}
+            spectrum_dict["spectrum_id"] = spectrum_dict["spectrumid"]
+            del spectrum_dict["spectrumid"]
             spectrum_dict["peaks_json"] = peaks_list
+            spectrum_dict["Precursor_MZ"] = spectrum_dict["precursor_mz"]
+            del spectrum_dict["precursor_mz"]
 
             json.dump(spectrum_dict, fout)
             if i < len(spectrums) - 1:
@@ -84,11 +87,8 @@ def make_json_file(pickle_file, path_to_store_json_file):
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
-        spectrum=spectrum.to_dict()
         spectrum_list.append(spectrum)
-    #print(spectrum.peaks)
-    #print(spectrum.get['peaks_json'])
-    matchms.exporting.save_as_json(spectrum_list,path_to_store_json_file)
+    save_as_json(spectrum_list,path_to_store_json_file)
     return None
 
 def try_massql(query, json_file):
@@ -171,7 +171,7 @@ def read_json(json_file):
         dict=json.load(f)
     df=json_normalize(dict)
     print(df.columns)
-    df.set_index("spectrumid",inplace=True, drop=True)
+    df.set_index("spectrum_id",inplace=True, drop=True)
     #print(df.loc["CCMSLIB00004678842"])
     #print(df.loc["CCMSLIB00000072521", "peaks_json"])
     return df
@@ -182,10 +182,11 @@ def new_dataframe(df_massql_matches,df_json):
     :return:
     """
     # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
-    df=pd.merge(df_massql_matches["precmz"],df_json[["precursor_mz","smiles", "peaks_json"]],left_index=True, right_index=True)
+    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
+    # for pickle file smiles instead of Smiles
     # for some matches there are no smiles so remove those from the dataframe
-    df.drop(df.index[df['smiles'] == 'N/A'], inplace=True)
-    df.drop(df.index[df['smiles'] == ' '], inplace=True)
+    df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
+    df.drop(df.index[df['Smiles'] == ' '], inplace=True)
     print(df)
     return df
 
@@ -204,9 +205,9 @@ def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files
     for i in range(3):
         spectrum_file.write("energy{0}\n".format(i))
         for sub_list in list_of_lists:
-            if sub_list[1]>600: #dit is ff een tussen oplossing om een file te krijgen waar je iets mee kan!
-                spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
-                spectrum_file.write("\n")
+            #if sub_list[1]>600: #dit is ff een tussen oplossing om een file te krijgen waar je iets mee kan!
+            spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
+            spectrum_file.write("\n")
     spectrum_file.close()
     print(os.path.abspath(file_path))
 
@@ -218,7 +219,7 @@ def make_spectrum_file_for_id_matchms(gnps_pickled_lib, spectrum_id, path_to_sto
     # spectra=gnps_pickled_libS
     # print(spectra.peaks.mz[0])
     for spectrum in obj:
-        if spectrum.get("spectrumid") == spectrum_id:
+        if spectrum.get("spectrum_id") == spectrum_id:
             file_path = Path(r"{0}/spectrum_file_{1}_new.txt".format(path_to_store_spectrum_files, spectrum_id))
             print(os.path.abspath(file_path))
             spectrum_file=open(file_path, "w")
@@ -296,11 +297,12 @@ def delete_files(path_to_store_spectrum_files):
 
 def main():
     """Main function of this module"""
-    path_to_pickle_file = argv[2]
+    #path_to_pickle_file = argv[2]
+    path_to_json_file= argv[2]
     filename=argv[1]
     path_to_store_spectrum_files = argv[3]
-    path_to_store_json_file=argv[4]
-    make_json_file(path_to_pickle_file, path_to_store_json_file)
+    #path_to_json_file=argv[4]
+    #make_json_file(path_to_pickle_file, path_to_json_file)
     # step 0: parse input line
     lines = (open(filename))
     for line in lines:
@@ -309,16 +311,16 @@ def main():
         motif, fragments, query=parse_line_with_motifs_and_querries(line)
         query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 68.0275:TOLERANCEMZ=0.01 AND MS2PROD = 85.0250:TOLERANCEMZ=0.01 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01")
         # step 1: parse json file
-        df_json=read_json(path_to_store_json_file)
+        df_json=read_json(path_to_json_file)
         # step 2: search query in json file with MassQL
-        df_massql_matches=try_massql(query, path_to_store_json_file)
+        df_massql_matches=try_massql(query, path_to_json_file)
         # step 3: get the smiles for every match of MassQL
         df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
         # step 4: print a spectrum file for a match
         #for identifier in list(index_smiles)
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
-        identifier="CCMSLIB00000001645"
+        identifier="CCMSLIB00000424797"
         spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
         #print(df_matches_and_smiles.loc[identifier, "Smiles"])
         #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
