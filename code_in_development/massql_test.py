@@ -38,6 +38,7 @@ import json
 from typing import List
 import numpy
 from matchms import Spectrum
+import csv
 
 # functions
 
@@ -46,6 +47,25 @@ def parse_line_with_motifs_and_querries(line):
     fragments=re.search(r'(.*)    (.*)    (.*)', line).group(2)
     query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
     return motif,fragments,query
+
+def save_json_as_csv(json_file):
+    with open(json_file) as json_file:
+        jsondata = json.load(json_file)
+
+    data_file = open('/lustre/BIF/nobackup/seele006/MassQL_speclib/HMDB.csv', 'w', newline='')
+    csv_writer = csv.writer(data_file)
+
+    count = 0
+    for data in jsondata:
+        if count == 0:
+            header = data.keys()
+            print(header)
+            csv_writer.writerow(header)
+            count += 1
+        csv_writer.writerow(data.values())
+
+    data_file.close()
+    return None
 
 def save_as_json(spectrums: List[Spectrum], filename: str):
     """Save spectrum(s) as json file.
@@ -226,8 +246,8 @@ def make_spectrum_file_for_id_matchms(gnps_pickled_lib, spectrum_id, path_to_sto
             file_path = Path(r"{0}/spectrum_file_{1}_new.txt".format(path_to_store_spectrum_files, spectrum_id))
             print(os.path.abspath(file_path))
             spectrum_file=open(file_path, "w")
-            for i in range(3):
-                spectrum_file.write("energy{0}\n".format(i))
+            for i in range(1):  #change to 3 for cfm-annotate
+                #spectrum_file.write("energy{0}\n".format(i))
                 for fragment in range(len(spectrum.peaks.mz)):
                     spectrum_file.write("{0} {1}".format(spectrum.peaks.mz[fragment], spectrum.peaks.intensities[fragment]))
                     spectrum_file.write("\n")
@@ -308,11 +328,14 @@ def main():
     #make_json_file(path_to_pickle_file, path_to_json_file)
     # step 0: parse input line
     lines = (open(filename))
+    save_json_as_csv(path_to_json_file)
     for line in lines:
         line = line.strip()
         line = line.replace('\n', '')
         motif, fragments, query=parse_line_with_motifs_and_querries(line)
         query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 85.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 68.0275:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.186:INTENSITYMATCHPERCENT=99 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.156:INTENSITYMATCHPERCENT=99")
+        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 176.0350:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 126.0550:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.089:INTENSITYMATCHPERCENT=99 AND MS2PROD = 127.0375:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.082:INTENSITYMATCHPERCENT=99")
+        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 46.0050:TOLERANCEMZ=0.005") #motif gnps_motif_38.m2m
         # step 1: parse json file
         df_json=read_json(path_to_json_file)
         # step 2: search query in json file with MassQL
@@ -323,7 +346,7 @@ def main():
         #for identifier in list(index_smiles)
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
-        identifier="CCMSLIB00000424797"
+        identifier="CCMSLIB00000427207" #result from HMDB with Motif_38
         spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
         #print(df_matches_and_smiles.loc[identifier, "Smiles"])
         #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
