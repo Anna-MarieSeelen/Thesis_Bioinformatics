@@ -192,7 +192,7 @@ def read_json(json_file):
     with open(json_file, 'r') as f:
         dict=json.load(f)
     df=json_normalize(dict)
-    print(df.columns)
+    #print(df.columns)
     df.set_index("spectrum_id",inplace=True, drop=True)
     #print(df.loc["CCMSLIB00004678842"])
     #print(df.loc["CCMSLIB00000072521", "peaks_json"])
@@ -209,8 +209,8 @@ def new_dataframe(df_massql_matches,df_json):
     # for some matches there are no smiles so remove those from the dataframe
     df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
     df.drop(df.index[df['Smiles'] == ' '], inplace=True)
-    for index, row in df.iterrows():
-        print(df.at[index,"Smiles"])
+    # for index, row in df.iterrows():
+    #     print(df.at[index,"Smiles"])
     return df
 
 def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
@@ -346,9 +346,9 @@ def main():
         #for identifier in list(index_smiles)
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
-        identifier="CCMSLIB00000427207" #result from HMDB with Motif_38
+        identifier="CCMSLIB00000426038" #result from HMDB with Motif_38
         spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
-        #print(df_matches_and_smiles.loc[identifier, "Smiles"])
+        print(df_matches_and_smiles.loc[identifier, "Smiles"])
         #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
         # make a huge list for each of the motifs containing the possible smiles per fragments
         #annotate_peaks(spectrum_file_name, smiles)
