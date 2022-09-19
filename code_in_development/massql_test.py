@@ -213,6 +213,29 @@ def new_dataframe(df_massql_matches,df_json):
     #     print(df.at[index,"Smiles"])
     return df
 
+def make_spectrum_file_for_id2(df_json, spectrum_id, path_to_store_spectrum_files):
+    """Takes a nested sorted list and outputs a tab delimited file
+
+    alignment_list: nested list with families and alignment lenghts
+    return: tab delimited text file with the contents of each sub list on a line
+    """
+    list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
+    HMDB_id=re.search(r'(HMDB:)(HMDB\d*)(-.*)', ast.literal_eval(df_json.loc[spectrum_id, "Compound_Name"])).group(2)
+    print(HMDB_id)
+    file_path = Path(r"{0}/spectrum_file_{1}.txt".format(path_to_store_spectrum_files,spectrum_id))
+    # if os.path.exists(file_path):
+    #     print(os.path.abspath(file_path))
+    #     return os.path.abspath(file_path)
+    spectrum_file=open(file_path, "w")
+    for i in range(3):
+        spectrum_file.write("energy{0}\n".format(i))
+        for sub_list in list_of_lists:
+            #if sub_list[1]>600: #dit is ff een tussen oplossing om een file te krijgen waar je iets mee kan!
+            spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
+            spectrum_file.write("\n")
+    spectrum_file.close()
+    print(os.path.abspath(file_path))
+
 def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
     """Takes a nested sorted list and outputs a tab delimited file
 
@@ -347,7 +370,7 @@ def main():
         #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
         #make_spectrum_file_for_id(list_of_lists, identifier)
         identifier="CCMSLIB00000426038" #result from HMDB with Motif_38
-        spectrum_file_name=make_spectrum_file_for_id(df_json, identifier, path_to_store_spectrum_files)
+        spectrum_file_name=make_spectrum_file_for_id2(df_json, identifier, path_to_store_spectrum_files)
         print(df_matches_and_smiles.loc[identifier, "Smiles"])
         #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
         # make a huge list for each of the motifs containing the possible smiles per fragments
