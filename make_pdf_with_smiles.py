@@ -29,6 +29,8 @@ from matchms.importing import load_from_mgf
 from matchms import Spectrum
 from matchms import Fragments
 from matchms.filtering import add_losses
+from math import floor
+from decimal import *
 
 # functions
 def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_in_motif=5) -> pd.DataFrame:
@@ -136,22 +138,47 @@ def visualize_mol(smiles: str):
 
 def calculate_counts_for_feature(mgf_file, list_of_selected_motifs: list, df_motifs_to_frag, df_motifs_to_doc: pd.DataFrame):
     spectra = list(load_from_mgf(mgf_file))
-    motif=list_of_selected_motifs[0]
+    motif=list_of_selected_motifs[7]
     print(motif)
     #for motif in list_of_selected_motifs:
+    features_list_of_lists_with_counts=[]
+    print(df_motifs_to_frag.at[motif, "Fragment+Probability"])
     for feature in df_motifs_to_frag.at[motif, "Fragment+Probability"]:
+        print(feature)
         count=0
+        total_documents_num = len(df_motifs_to_doc.at[motif, "Document+Probability+Overlap"])
         for document in df_motifs_to_doc.at[motif, "Document+Probability+Overlap"]:
-            print(document)
+            #print(document)
             for spectrum in spectra:
-                  if int(spectrum.get("scans")) == int(document[0]):
-                      if re.search(r'loss', feature[0]) != None:
-                          spectrum=add_losses(spectrum)
-                          #spectrum.losess = Fragments(mz=spectrum.peaks.mz, intensities=spectrum.peaks.intensities)
-                          for loss in range(len(spectrum.losses.mz)):
-                              print(spectrum.losses.mz[loss])
-                              if spectrum.losses.mz[loss]==re.search(r'\_(.*)', feature[0]).group(1):
-                                  print("yes")
+                if int(spectrum.get("scans")) == int(document[0]):
+                    if re.search(r'loss', feature[0]) != None:
+                        #print(spectrum.get("scans"))
+                        spectrum=add_losses(spectrum)
+                        #spectrum.losess = Fragments(mz=spectrum.peaks.mz, intensities=spectrum.peaks.intensities)
+                        for loss in range(len(spectrum.losses.mz)):
+                            #print(spectrum.losses.mz[loss])
+                            #print(re.search(r'\_(.*\..{2}).*', feature[0]).group(1))
+                            rounded_loss = Decimal(spectrum.losses.mz[loss]).quantize(Decimal('.01'),
+                                                                                             rounding=ROUND_DOWN)
+                            if float(rounded_loss)==float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
+                                count+=1
+                                print(document[0])
+                    else:
+                        for fragment in range(len(spectrum.peaks.mz)):
+                            #print(round(spectrum.peaks.mz[fragment], 1))
+                            #print(re.search(r'\_(.*\..{1}).*', feature[0]).group(1))
+                            rounded_fragment=Decimal(spectrum.peaks.mz[fragment]).quantize(Decimal('.01'), rounding=ROUND_DOWN)
+                            if float(rounded_fragment) == float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
+                                count+=1
+        ratio_count=count/total_documents_num
+        feature.append(ratio_count)
+        features_list_of_lists_with_counts.append(feature)
+    features_list_of_lists_with_counts = sorted(features_list_of_lists_with_counts, key=lambda x: x[2], reverse=True)
+    if features_list_of_lists_with_counts[1][2]>=0.5:
+        df_motifs_to_frag.at[motif, "Fragment+Probability"]=features_list_of_lists_with_counts[:2]
+    else:
+        df_motifs_to_frag.at[motif, "Fragment+Probability"]=features_list_of_lists_with_counts[:1]
+    print(df_motifs_to_frag.at[motif, "Fragment+Probability"])
                           #print(re.search(r'\_(.*)', feature[0]).group(1))
         #                  count += 1
         #              else:
