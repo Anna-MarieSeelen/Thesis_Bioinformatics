@@ -25,6 +25,10 @@ from fpdf import FPDF
 import re
 from pathlib import Path
 import os
+from matchms.importing import load_from_mgf
+from matchms import Spectrum
+from matchms import Fragments
+from matchms.filtering import add_losses
 
 # functions
 def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_in_motif=5) -> pd.DataFrame:
@@ -130,6 +134,35 @@ def visualize_mol(smiles: str):
     img = MolToImage(mol, size=(200, 200), fitImage=True)
     return img
 
+def calculate_counts_for_feature(mgf_file, list_of_selected_motifs: list, df_motifs_to_frag, df_motifs_to_doc: pd.DataFrame):
+    spectra = list(load_from_mgf(mgf_file))
+    motif=list_of_selected_motifs[0]
+    print(motif)
+    #for motif in list_of_selected_motifs:
+    for feature in df_motifs_to_frag.at[motif, "Fragment+Probability"]:
+        count=0
+        for document in df_motifs_to_doc.at[motif, "Document+Probability+Overlap"]:
+            print(document)
+            for spectrum in spectra:
+                  if int(spectrum.get("scans")) == int(document[0]):
+                      if re.search(r'loss', feature[0]) != None:
+                          spectrum=add_losses(spectrum)
+                          #spectrum.losess = Fragments(mz=spectrum.peaks.mz, intensities=spectrum.peaks.intensities)
+                          for loss in range(len(spectrum.losses.mz)):
+                              print(spectrum.losses.mz[loss])
+                              if spectrum.losses.mz[loss]==re.search(r'\_(.*)', feature[0]).group(1):
+                                  print("yes")
+                          #print(re.search(r'\_(.*)', feature[0]).group(1))
+        #                  count += 1
+        #              else:
+        #                  for fragment in range(len(spectrum.peaks.mz)):
+        #                      if spectrum.peaks.mz[fragment] == re.search(r'\_(.*)', feature[0]).group(1):
+        #                          count += 1
+        # print(count)
+
+
+    return None
+
 def make_MassQL_search(fragments: list) -> str:
     """
     Takes a list of lists containing fragments and probabilities and returns corresponding MassQL query
@@ -139,14 +172,12 @@ def make_MassQL_search(fragments: list) -> str:
     """
     query="QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive " #MS1DATA doesn't give any results, so MS2DATA it is
     fragments=sorted(fragments, key = lambda x: x[1], reverse=True)
-    print(fragments)
     fragments_rel_intensity=list(map(list, fragments)) # to make a copy, but not a reference of fragments
     for i in range(len(fragments_rel_intensity)):
         if i==0:
             fragments_rel_intensity[i][1]=1.0
         else:
             fragments_rel_intensity[i][1]=round(fragments[i][1]/fragments[0][1],3)
-    print(fragments_rel_intensity)
     for fragment in fragments_rel_intensity:
         for string in fragment:
             if fragment[1]==1.0:
@@ -166,7 +197,6 @@ def make_MassQL_search(fragments: list) -> str:
                         query+="AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],99)
                 else:
                     pass
-    print(query)
     return query
 
 def make_file_with_massql_querries(df_motifs_to_frag: pd.DataFrame, list_of_selected_motifs: list) -> str:
@@ -282,6 +312,7 @@ def main() -> None:
     path_to_file_with_MS2Query_csv= argv[1]
     path_file_with_MS2LDA_csv = argv[2]
     path_file_with_Motif_fragments_csv = argv[3]
+    path_to_gnps_output_mgf_file = argv[4]
     # step 1: rearrange MS2LDA file with mass2motifs and documents in dataframe
     df_motifs_to_doc=convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv, threshold_spectra_in_motif=5)
     #step 2: rearrange MS2Query file with documents and smiles of analogs in dataframe
@@ -292,6 +323,7 @@ def main() -> None:
     list_of_selected_motifs=make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_motifs_to_frag, threshold_amount_analogs=2)
     # step 5: make a table with the massql querries and their motifs and fragments
     print(make_file_with_massql_querries(df_motifs_to_frag, list_of_selected_motifs))
+    calculate_counts_for_feature(path_to_gnps_output_mgf_file,list_of_selected_motifs, df_motifs_to_frag, df_motifs_to_doc)
 
 if __name__ == "__main__":
     main()
