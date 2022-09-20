@@ -137,9 +137,18 @@ def visualize_mol(smiles: str):
     return img
 
 def calculate_counts_for_feature(mgf_file, list_of_selected_motifs: list, df_motifs_to_frag, df_motifs_to_doc: pd.DataFrame):
+    """
+
+    :param mgf_file: str, path of file
+    :param list_of_selected_motifs:
+    :param df_motifs_to_frag:
+    :param df_motifs_to_doc:
+    :return:
+    """
     spectra = list(load_from_mgf(mgf_file))
     motif=list_of_selected_motifs[7]
     print(motif)
+    #TODO: implement this for-loop
     #for motif in list_of_selected_motifs:
     features_list_of_lists_with_counts=[]
     print(df_motifs_to_frag.at[motif, "Fragment+Probability"])
@@ -178,7 +187,12 @@ def calculate_counts_for_feature(mgf_file, list_of_selected_motifs: list, df_mot
         df_motifs_to_frag.at[motif, "Fragment+Probability"]=features_list_of_lists_with_counts[:2]
     else:
         df_motifs_to_frag.at[motif, "Fragment+Probability"]=features_list_of_lists_with_counts[:1]
-    print(df_motifs_to_frag.at[motif, "Fragment+Probability"])
+    #TODO: make a new dataframe for fragment+probability with only the selected mass2motifs there
+    #df_motif_list_of_lists_feature = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif",
+    #                                                                                                as_index=True).aggregate(
+    #     {"Fragment+Probability": list})
+    #print(df_motifs_to_frag.at[motif, "Fragment+Probability"])
+    #print(df_motifs_to_frag["Fragment+Probability"])
                           #print(re.search(r'\_(.*)', feature[0]).group(1))
         #                  count += 1
         #              else:
@@ -186,8 +200,7 @@ def calculate_counts_for_feature(mgf_file, list_of_selected_motifs: list, df_mot
         #                      if spectrum.peaks.mz[fragment] == re.search(r'\_(.*)', feature[0]).group(1):
         #                          count += 1
         # print(count)
-
-
+    #TODO: return the new dataframe
     return None
 
 def make_MassQL_search(fragments: list) -> str:
@@ -226,6 +239,24 @@ def make_MassQL_search(fragments: list) -> str:
                     pass
     return query
 
+def make_list_of_selected_motifs(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_motifs_to_frag: pd.DataFrame,
+                 threshold_amount_analogs=2):
+    list_of_selected_motifs = []
+    for index, row in df_motifs_to_doc.iterrows():
+        amount_of_smiles = 0
+        # calculating the amount of smiles with a probability > 0.7 associated with each motif
+        for cell in row:
+            if cell in df_doc_to_smiles.index.values.tolist():
+                if df_doc_to_smiles.at[cell, "smiles"] != "":
+                    amount_of_smiles += 1
+        # selection of Mass2Motifs based on the amount of smiles with a probability > 0.7.
+        # At least 2 or more Smiles are needed for a mass2motif to be added to the list so that the validation can happen
+        if amount_of_smiles >= threshold_amount_analogs:
+            # if the mass2motif is in the list of indexes of df_motifs_to_frag then look for the column with fragments
+            if index in df_motifs_to_frag.index.values.tolist():
+                list_of_selected_motifs.append(index)
+    return list_of_selected_motifs
+
 def make_file_with_massql_querries(df_motifs_to_frag: pd.DataFrame, list_of_selected_motifs: list) -> str:
     """Outputs a tab delimited file with the selected motifs, their fragments and their MassQL querries
 
@@ -246,8 +277,7 @@ def make_file_with_massql_querries(df_motifs_to_frag: pd.DataFrame, list_of_sele
     spectrum_file.close()
     return os.path.abspath(file_path)
 
-def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_motifs_to_frag: pd.DataFrame,
-                 threshold_amount_analogs=2) -> list:
+def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_motifs_to_frag: pd.DataFrame, list_of_selected_motifs: list) -> None:
     """selects certain motifs and makes an overview PDF with the Mass2Motif, fragments, and the associated analogs
 
     :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
@@ -260,32 +290,23 @@ def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_
     fragment/neutral loss with a prob > 0.05 and at least x (default=2) matched analogues with a probability > x
     (default=0.7).
     """
-
+    #TODO: dataframe that should be inputted for fragments is the database that only contains the counts and selected_mass2motifs
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", size=10)
-    list_of_selected_motifs = []
     for index, row in df_motifs_to_doc.iterrows():
-        amount_of_smiles = 0
-        # calculating the amount of smiles with a probability > 0.7 associated with each motif
-        for cell in row:
-            if cell in df_doc_to_smiles.index.values.tolist():
-                if df_doc_to_smiles.at[cell, "smiles"] != "":
-                    amount_of_smiles += 1
         # selection of Mass2Motifs that will be printed in PDF based on the amount of smiles with a probability > 0.7.
         # At least 2 or more Smiles are needed.
-        if amount_of_smiles >= threshold_amount_analogs:
+        if index in list_of_selected_motifs:
             pdf.multi_cell(200, 5, txt="\n", align='C')
             pdf.set_font("helvetica", "B", size=10)
             # writing the mass_2_motif name, which is the index of df_motifs_to_doc, in the file
             pdf.multi_cell(200, 5, txt="{0}\n".format(index), align='C')
             pdf.set_font("helvetica", size=10)
             # if the mass2motif is in the list of indexes of df_motifs_to_frag then look for the column with fragments
-            # + probability of that mass2motif and sort that list of lists on the probability value
+            # + probability and count of that mass2motif
             if index in df_motifs_to_frag.index.values.tolist():
-                list_of_selected_motifs.append(index)
-                pdf.multi_cell(200, 5, txt="{0}\n".format(
-                    sorted(df_motifs_to_frag.at[index, "Fragment+Probability"], key=lambda x: x[1], reverse=True)),
+                pdf.multi_cell(200, 5, txt="{0}\n".format(df_motifs_to_frag.at[index, "Fragment+Probability"]),
                                align='L')
                 # https: // www.geeksforgeeks.org / python - sort - list - according - second - element - sublist /
                 MassQL_query = make_MassQL_search(df_motifs_to_frag.at[index, "Fragment+Probability"])
@@ -330,7 +351,6 @@ def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_
                                 df_doc_to_smiles.at[cell, "precursor_mz_analog"],
                                 df_doc_to_smiles.at[cell, "ms2query_model_prediction"]), align='L')
     pdf.output("output.pdf")
-    return list_of_selected_motifs
 
 def main() -> None:
     """Main function of this module"""
@@ -346,11 +366,16 @@ def main() -> None:
     df_doc_to_smiles=convert_ms2query_to_df(path_to_file_with_MS2Query_csv, threshold_ms2query_pred=0.7)
     # step 3: rearrange MS2LDA fragment file with mass2motifs and fragments in dataframe
     df_motifs_to_frag=convert_fragments_in_motif_to_df(path_file_with_Motif_fragments_csv)
+    # step 4: make a list of the selected motifs
+    list_of_selected_motifs = make_list_of_selected_motifs(df_motifs_to_doc, df_doc_to_smiles, df_motifs_to_frag,
+                                                           threshold_amount_analogs=2)
+    # step 5: calculate the counts for every selected feature to make massql query
+    calculate_counts_for_feature(path_to_gnps_output_mgf_file, list_of_selected_motifs, df_motifs_to_frag,
+                                 df_motifs_to_doc)
     #step 4: make a PDF where you can see each Mass2Motif, its fragments, and the associated analog structures
-    list_of_selected_motifs=make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_motifs_to_frag, threshold_amount_analogs=2)
+    make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_motifs_to_frag, list_of_selected_motifs)
     # step 5: make a table with the massql querries and their motifs and fragments
     print(make_file_with_massql_querries(df_motifs_to_frag, list_of_selected_motifs))
-    calculate_counts_for_feature(path_to_gnps_output_mgf_file,list_of_selected_motifs, df_motifs_to_frag, df_motifs_to_doc)
 
 if __name__ == "__main__":
     main()
