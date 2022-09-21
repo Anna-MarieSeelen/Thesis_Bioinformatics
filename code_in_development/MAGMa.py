@@ -15,6 +15,10 @@ Usage: python3 *name_of_script* *name_input_file* [*output_file*] [gap_penalty]
 import json
 import sqlite3
 from sys import argv
+import re
+from pathlib import Path
+import os
+import subprocess
 
 #functions
 def convert_json_to_sqlite(path_to_json_file,dir_database):
@@ -66,9 +70,33 @@ def convert_json_to_sqlite(path_to_json_file,dir_database):
     connection.commit()
     return None
 
+def initialize_db_to_save_results(path_to_store_results_db,path_to_spectrum_file):
+    #generate a good database name with the spectrum id and motif in it.
+    spectrum_name=re.search(r'(.*)(spectrum.*)(.txt)', path_to_spectrum_file).group(2)
+    file_path_out = Path(r"{0}/MAGMa_db_{1}.sqlite".format(path_to_store_results_db, spectrum_name))
+    #if you try to annotate something in an exisiting database it will go wrong, so if the database exists remove it
+    if os.path.exists(file_path_out):
+        os.remove(file_path_out)
+    cmd = 'magma init_db {0}'\
+            .format(file_path_out)
+    e = subprocess.check_call(cmd, shell=True)
+    print("EXIT STATUS AND TYPE", e, type(e))
+    return file_path_out
+
+def read_spectrum_to_be_annotated_into_db(path_to_spectrum_file):
+
+
+#TODO: massql will return a sqlite database: you should check the identifiers! Definitely look at the HMDB identifier
+
+
 def main():
-    path_to_json_file=argv[1]
-    convert_json_to_sqlite(path_to_json_file)
+    #main function of the script
+    #step 0: parse input
+    path_to_structures_database=argv[1]
+    path_to_spectrum_file=argv[2]
+    path_to_store_results_db=argv[3]
+    #step 1:
+    print(initialize_db_to_save_results(path_to_store_results_db, path_to_spectrum_file))
 
 if __name__ == "__main__":
     main()
