@@ -110,6 +110,9 @@ def annotate_spectrum(path_to_structures_database,path_to_results_db_file, max_n
 
 #TODO: massql will return a sqlite database: you should check the identifiers! Definitely look at the HMDB identifier
 
+#you need the spectrum file with the motif and the identifier
+#you need the file from pdf script where you see the fragments for each motif
+
 
 def main():
     #main function of the script
