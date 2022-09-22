@@ -109,7 +109,33 @@ def annotate_spectrum(path_to_structures_database,path_to_results_db_file, max_n
     return None
 
 #TODO: massql will return a sqlite database: you should check the identifiers! Definitely look at the HMDB identifier
+def get_molid_of_matched_compound(path_to_results_db_file, identifier_spectrum):
+    conn = sqlite3.connect(path_to_results_db_file)
+    sqlite_command = \
+        f"""SELECT name FROM molecules"""
+    cur = conn.cursor()
+    cur.execute(sqlite_command)
+    list_of_identifiers_of_matches = cur.fetchall()
+    list_of_identifiers_of_matches = list(map(''.join,list_of_identifiers_of_matches))
+    print(list_of_identifiers_of_matches)
+    for identifier in list_of_identifiers_of_matches:
+        print(str(re.search(r'.*\((HMDB.*)\).*', identifier).group(1)))
+        if identifier_spectrum==str(re.search(r'.*\((HMDB.*)\).*', identifier).group(1)):
+            conn = sqlite3.connect(path_to_results_db_file)
+            sqlite_command = \
+                f"""SELECT molid FROM molecules WHERE name = 'L-Aspartic acid (HMDB0000191)'"""
+            cur = conn.cursor()
+            cur.execute(sqlite_command)
+            molid=cur.fetchall()
+            molid=[i[0] for i in molid][0]
+            return molid
+        else:
+            pass
+            return None
 
+def blabla():
+    #if molid is not None, than you can look for mol id in the fragments table
+    return None
 #you need the spectrum file with the motif and the identifier
 #you need the file from pdf script where you see the fragments for each motif
 
@@ -120,9 +146,11 @@ def main():
     path_to_structures_database=argv[1]
     path_to_spectrum_file=argv[2]
     path_to_store_results_db=argv[3]
+    identifier="HMDB0000191"
+    #knippen in de naam van de spectrum_file
+    #identifier,motif=
     #step 1: initialize database to save results
     path_to_results_db_file=initialize_db_to_save_results(path_to_store_results_db, path_to_spectrum_file)
-    print(path_to_results_db_file)
     # step 2: add spectrum to be annotated into the results database
     add_spectrum_to_be_annotated_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000,
                                          mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
@@ -130,6 +158,8 @@ def main():
     #step 3: annotate spectrum and store output in results database
     annotate_spectrum(path_to_structures_database, path_to_results_db_file, max_num_break_bonds=10, structure_db="hmdb",
                       ncpus=1)
+    # step 4: get identifiers of matches
+    get_molid_of_matched_compound(path_to_results_db_file, identifier)
 
 if __name__ == "__main__":
     main()
