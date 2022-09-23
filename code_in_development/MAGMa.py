@@ -246,6 +246,9 @@ def main():
         list_with_fragments_and_smiles=make_spectrum_object(molid, path_to_results_db_file)
         search_for_smiles(list_of_features, list_with_fragments_and_smiles)
     # step 7:
+    #alle haakjes weg
+    #only the letters should match, if there is a ( I don't care) regex expression
+    #string='NC(CC(=O)O)C(=O)O'-'NCCC(=O)O'
 
 
 if __name__ == "__main__":
