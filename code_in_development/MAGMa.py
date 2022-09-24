@@ -24,6 +24,8 @@ from decimal import *
 import ast
 from matchms import Spectrum
 from matchms.filtering import add_losses
+from rdkit import Chem
+from rdkit.Chem import rdFMCS
 
 #functions
 def convert_json_to_sqlite(path_to_json_file,dir_database):
@@ -216,6 +218,14 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                 print("hi")
     return None
 
+def make_regex_for_loss(parent_string,fragment_string):
+    list(fragment_string)
+    for i in range(len(fragment_string)):
+        if i=='(' or i==")" or i=="=":
+            new_string=fragment_string[:i] + "\" + fragment_string[i:]
+
+
+
 
 def main():
     #main function of the script
@@ -244,12 +254,17 @@ def main():
     # step 6: get the fragments and smiles of the match
     if molid is not None:
         list_with_fragments_and_smiles=make_spectrum_object(molid, path_to_results_db_file)
-        search_for_smiles(list_of_features, list_with_fragments_and_smiles)
+        #search_for_smiles(list_of_features, list_with_fragments_and_smiles)
     # step 7:
     #alle haakjes weg
     #only the letters should match, if there is a ( I don't care) regex expression
-    #string='NC(CC(=O)O)C(=O)O'-'NCCC(=O)O'
-
+    string_1='NC(CC(=O)O)C(=O)O'
+    string_2='N[\(|\)]*C[\(|\)]*C[\(|\)]*C[\(|\)]*\=[\(|\)]*O[\(|\)]*\)[\(|\)]*O[\(|\)]*'
+    #mols = [Chem.MolFromSmiles(string_2), Chem.MolFromSmiles(string_1)]
+    #MCS_in_smart_string=rdFMCS.FindMCS(mols, ringMatchesRingOnly=True).smartsString
+    #print(Chem.MolToSmiles(Chem.MolFromSmarts(MCS_in_smart_string)))
+    #print(re.search(fr'(.*)({0})(.*)'.format(string_2), string_1).group(1))
+    print(re.search(r'(.*)(N[\(|\)]*C[\(|\)]*C[\(|\)]*C[\(|\)]*\=[\(|\)]*O[\(|\)]*\)[\(|\)]*O[\(|\)]*)(.*)', string_1).group(3))
 
 if __name__ == "__main__":
     main()
