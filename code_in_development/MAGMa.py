@@ -219,13 +219,34 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
     return None
 
 def make_regex_for_loss(parent_string,fragment_string):
-    list(fragment_string)
-    for i in range(len(fragment_string)):
-        if i=='(' or i==")" or i=="=":
-            new_string=fragment_string[:i] + "\" + fragment_string[i:]
-
-
-
+    #TODO: werkt dit voor alle moleculen? Aan justin vragen...
+    new_fragment_string=re.escape(fragment_string)
+    list_fragment_string = list(new_fragment_string)
+    for index,letter in enumerate(list_fragment_string):
+        if index==0:
+            if letter=="\\":
+                letter_with_slash="[\(|\)]*"+letter
+                list_fragment_string[index]=letter_with_slash
+            else:
+                letter_with_slash="[\(|\)]*"+letter+"[\(|\)]*"
+                list_fragment_string[index]=letter_with_slash
+        elif letter!="\\":
+            if index!=0:
+                letter_with_slash=letter+"[\(|\)]*"
+                list_fragment_string[index]=letter_with_slash
+    re_search_string="".join(list_fragment_string)
+    if re.search(rf'(.+)({re_search_string})',
+                    parent_string) != None:
+        smiles_neutral_loss = re.search(rf'(.+)({re_search_string})',
+                    parent_string).group(1)
+        return smiles_neutral_loss
+    elif re.search(rf'({re_search_string})(.+)',
+                    parent_string) != None:
+        smiles_neutral_loss = re.search(rf'({re_search_string})(.+)',
+                                        parent_string).group(2)
+        return smiles_neutral_loss
+    else:
+        return "smiles not found"
 
 def main():
     #main function of the script
@@ -259,12 +280,14 @@ def main():
     #alle haakjes weg
     #only the letters should match, if there is a ( I don't care) regex expression
     string_1='NC(CC(=O)O)C(=O)O'
-    string_2='N[\(|\)]*C[\(|\)]*C[\(|\)]*C[\(|\)]*\=[\(|\)]*O[\(|\)]*\)[\(|\)]*O[\(|\)]*'
+    #string_2='N[\(|\)]*C[\(|\)]*C[\(|\)]*C[\(|\)]*\=[\(|\)]*O[\(|\)]*\)[\(|\)]*O[\(|\)]*'
     #mols = [Chem.MolFromSmiles(string_2), Chem.MolFromSmiles(string_1)]
     #MCS_in_smart_string=rdFMCS.FindMCS(mols, ringMatchesRingOnly=True).smartsString
     #print(Chem.MolToSmiles(Chem.MolFromSmarts(MCS_in_smart_string)))
     #print(re.search(fr'(.*)({0})(.*)'.format(string_2), string_1).group(1))
-    print(re.search(r'(.*)(N[\(|\)]*C[\(|\)]*C[\(|\)]*C[\(|\)]*\=[\(|\)]*O[\(|\)]*\)[\(|\)]*O[\(|\)]*)(.*)', string_1).group(3))
+    string_2="NCCC(=O)O"
+    print(make_regex_for_loss(string_1, string_2))
+    #print(re.search(r'(.*)(N[\(|\)]*C[\(|\)]*C[\(|\)]*C[\(|\)]*\=[\(|\)]*O[\(|\)]*\)[\(|\)]*O[\(|\)]*)(.*)', string_1).group(3))
 
 if __name__ == "__main__":
     main()
