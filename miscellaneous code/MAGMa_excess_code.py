@@ -129,6 +129,75 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                     print(fragment_smiles)
     return None
 
+def make_regex_for_loss(parent_string, fragment_string):
+    new_fragment_string = re.escape(fragment_string)
+    list_fragment_string = list(new_fragment_string)
+    for index, letter in enumerate(list_fragment_string):
+        if index == 0:
+            if letter == "\\":
+                letter_with_slash = "[\(|\)]*" + letter
+                list_fragment_string[index] = letter_with_slash
+            else:
+                letter_with_slash = "[\(|\)]*" + letter + "[\(|\)]*"
+                list_fragment_string[index] = letter_with_slash
+        elif letter != "\\":
+            if index != 0:
+                letter_with_slash = letter + "[\(|\)]*"
+                list_fragment_string[index] = letter_with_slash
+    re_search_string = "".join(list_fragment_string)
+    if re.search(rf'(.+)({re_search_string})',
+                 parent_string) != None:
+        smiles_neutral_loss = re.search(rf'(.+)({re_search_string})',
+                                        parent_string).group(1)
+        return smiles_neutral_loss
+    elif re.search(rf'({re_search_string})(.+)',
+                   parent_string) != None:
+        smiles_neutral_loss = re.search(rf'({re_search_string})(.+)',
+                                        parent_string).group(2)
+        return smiles_neutral_loss
+    else:
+        return "smiles not found"
+
+def make_regex_for_loss_version2(parent_string, fragment_string):
+        new_fragment_string = re.escape(fragment_string)
+        list_fragment_string = list(new_fragment_string)
+        for index, letter in enumerate(list_fragment_string):
+            if index == 0:
+                if letter == "\\":
+                    letter_with_slash = "[\(|\)]*" + letter
+                    list_fragment_string[index] = letter_with_slash
+                else:
+                    letter_with_slash = "[\(|\)]*" + letter + "[\(|\)]*"
+                    list_fragment_string[index] = letter_with_slash
+            elif letter != "\\":
+                if index != 0:
+                    letter_with_slash = letter + "[\(|\)]*"
+                    list_fragment_string[index] = letter_with_slash
+        re_search_string = "".join(list_fragment_string)
+        if re.search(rf'(.+)({re_search_string})',
+                     parent_string) != None and re.search(rf'({re_search_string})(.+)',
+                                                          parent_string) != None:
+            smiles_neutral_loss = re.search(rf'(.+)({re_search_string})',
+                                            parent_string).group(1) + re.search(rf'({re_search_string})(.+)',
+                                                                                parent_string).group(2)
+            mols = [Chem.MolFromSmiles(parent_string), Chem.MolFromSmiles(smiles_neutral_loss)]
+            print(mols)
+            MCS_in_smart_string = rdFMCS.FindMCS(mols, ringMatchesRingOnly=True).smartsString
+            print(MCS_in_smart_string)
+            print(Chem.MolToSmiles(Chem.MolFromSmarts(MCS_in_smart_string)))
+            return Chem.MolToSmiles(Chem.MolFromSmarts(MCS_in_smart_string))
+        elif re.search(rf'(.+)({re_search_string})',
+                       parent_string) != None:
+            smiles_neutral_loss = re.search(rf'(.+)({re_search_string})',
+                                            parent_string).group(1)
+            return smiles_neutral_loss
+        elif re.search(rf'({re_search_string})(.+)',
+                       parent_string) != None:
+            smiles_neutral_loss = re.search(rf'({re_search_string})(.+)',
+                                            parent_string).group(2)
+            return smiles_neutral_loss
+        else:
+            return None
                     # then we can look for the smiles! with the parent
 
     #             feature_loss = re.search(r'\_(.*)', feature).group(1)

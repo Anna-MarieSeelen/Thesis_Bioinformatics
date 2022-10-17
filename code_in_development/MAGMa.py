@@ -29,6 +29,7 @@ import ast
 from rdkit import Chem
 from rdkit.Chem.Descriptors import MolWt
 import time
+from rdkit.Chem import rdFMCS
 
 
 #functions
@@ -197,7 +198,6 @@ def make_list_of_losses(list_with_fragments_and_smiles):
     :return: a list with parent mass at position zero and after that the Da (Decimal) of the losses between the parent
     mass and the annotated fragments
     """
-    # make a list of losses if re.search is a loss
     list_with_losses=[]
     for index,fragment in enumerate(list_with_fragments_and_smiles):
         if index !=0:
@@ -213,43 +213,22 @@ def make_list_of_losses(list_with_fragments_and_smiles):
     return(list_with_losses)
 
 def make_regex_for_loss(parent_string,fragment_string):
-    #TODO: werkt dit voor alle moleculen? Aan justin vragen...
-    m = Chem.MolFromSmiles(parent_string)
-    print(parent_string)
-    patt = Chem.MolFromSmiles('NOH')
-    try:
-        rm = Chem.DeleteSubstructs(m, patt)
-        print(Chem.MolToSmiles(rm))
-    except ArgumentError:
-        return "smiles not found"
+    """
 
-    new_fragment_string=re.escape(fragment_string)
-    list_fragment_string = list(new_fragment_string)
-    for index,letter in enumerate(list_fragment_string):
-        if index==0:
-            if letter=="\\":
-                letter_with_slash="[\(|\)]*"+letter
-                list_fragment_string[index]=letter_with_slash
-            else:
-                letter_with_slash="[\(|\)]*"+letter+"[\(|\)]*"
-                list_fragment_string[index]=letter_with_slash
-        elif letter!="\\":
-            if index!=0:
-                letter_with_slash=letter+"[\(|\)]*"
-                list_fragment_string[index]=letter_with_slash
-    re_search_string="".join(list_fragment_string)
-    if re.search(rf'(.+)({re_search_string})',
-                    parent_string) != None:
-        smiles_neutral_loss = re.search(rf'(.+)({re_search_string})',
-                    parent_string).group(1)
-        return smiles_neutral_loss
-    elif re.search(rf'({re_search_string})(.+)',
-                    parent_string) != None:
-        smiles_neutral_loss = re.search(rf'({re_search_string})(.+)',
-                                        parent_string).group(2)
-        return smiles_neutral_loss
-    else:
-        return "smiles not found"
+    :param parent_string:
+    :param fragment_string:
+    :return:
+    """
+    parent = Chem.MolFromSmiles(parent_string)
+    fragment = Chem.MolFromSmiles(fragment_string)
+    neutral_loss = Chem.ReplaceCore(parent, fragment)
+    rs = Chem.GetMolFrags(neutral_loss, asMols=True)
+    smiles_neutral_loss = ""
+    for i in rs:
+        part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
+                                        Chem.MolToSmiles(i)).group(2)
+        smiles_neutral_loss+=part_of_smiles_loss
+    return smiles_neutral_loss
 
 def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
     """
@@ -272,12 +251,15 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                     precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
                     smiles_neutral_loss=make_regex_for_loss(precusor_smiles, fragment_smiles)
-                    # check if the smiles has the same molecular mass as the loss reported of the feature
-                    mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
-                    rounded_mol_weight_from_smiles=Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
+                    if smiles_neutral_loss != None:
+                        # check if the smiles has the same molecular mass as the loss reported of the feature
+                        mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
+                        rounded_mol_weight_from_smiles=Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
                                                                           rounding=ROUND_DOWN)
-                    if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
-                        print(smiles_neutral_loss)
+                        if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
+                            print(smiles_neutral_loss)
+                    else:
+                        return None
         # if feature is not a loss
         else:
             for fragment in enumerate(list_with_fragments_and_smiles):
