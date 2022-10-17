@@ -28,6 +28,8 @@ from decimal import *
 import ast
 from rdkit import Chem
 from rdkit.Chem.Descriptors import MolWt
+import time
+
 
 #functions
 def initialize_db_to_save_results(path_to_store_results_db,path_to_spectrum_file):
@@ -182,14 +184,18 @@ def look_for_features(txt_file_with_motif_and_frag, current_motif):
         if motif == current_motif:
             list_of_features=[]
             for object in features_list_1:
+                # add the features of the current motif to the list of features 1 by 1.
                 list_of_features.append(object[0])
             return(list_of_features)
 
 def make_list_of_losses(list_with_fragments_and_smiles):
     """
+    Makes a list of the Da of the losses between the parent mass and the annotated fragments
 
-    :param list_with_fragments_and_smiles:
-    :return:
+    :param list_with_fragments_and_smiles: list of tuples containing the fragment m/z and smiles for each fragment of
+    the matched compound
+    :return: a list with parent mass at position zero and after that the Da (Decimal) of the losses between the parent
+    mass and the annotated fragments
     """
     # make a list of losses if re.search is a loss
     list_with_losses=[]
@@ -203,10 +209,20 @@ def make_list_of_losses(list_with_fragments_and_smiles):
         else:
             precusor_mz, precusor_smiles = fragment
             list_with_losses.append(precusor_mz)
+    print(list_with_losses)
     return(list_with_losses)
 
 def make_regex_for_loss(parent_string,fragment_string):
     #TODO: werkt dit voor alle moleculen? Aan justin vragen...
+    m = Chem.MolFromSmiles(parent_string)
+    print(parent_string)
+    patt = Chem.MolFromSmiles('NOH')
+    try:
+        rm = Chem.DeleteSubstructs(m, patt)
+        print(Chem.MolToSmiles(rm))
+    except ArgumentError:
+        return "smiles not found"
+
     new_fragment_string=re.escape(fragment_string)
     list_fragment_string = list(new_fragment_string)
     for index,letter in enumerate(list_fragment_string):
@@ -283,6 +299,7 @@ def write_output_to_file():
 def main():
     #main function of the script
     #step 0: parse input
+    before_script=time.perf_counter()
     path_to_structures_database=argv[1]
     path_to_spectrum_file=argv[2]
     path_to_store_results_db=argv[3]
@@ -293,22 +310,36 @@ def main():
     current_motif="gnps_motif_38.m2m"
     #step 1: initialize database to save results from MAGMa
     path_to_results_db_file=initialize_db_to_save_results(path_to_store_results_db, path_to_spectrum_file)
+    after_init=time.perf_counter()
+    print("init database {0}".format(after_init-before_script))
     # step 2: add spectrum to be annotated into the results database
     add_spectrum_to_be_annotated_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000,
                                          mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
                                          ionisation=1)
+    after_add_spectrum=time.perf_counter()
+    print("add spectrum {0}".format(after_add_spectrum-after_init))
     #step 3: annotate spectrum with MAGMa and store output in results database
     annotate_spectrum_with_MAGMa(path_to_structures_database, path_to_results_db_file, max_num_break_bonds=10, structure_db="hmdb",
                       ncpus=1)
+    after_annotate=time.perf_counter()
+    print("annotate spectrum {0}".format(after_annotate-after_add_spectrum))
     # step 4: get identifiers of matches
     molid=get_molid_of_matched_compound(path_to_results_db_file, identifier)
+    after_annotate=time.perf_counter()
+    print("get molids {0}".format(after_annotate-after_add_spectrum))
     #step 5: search for the features beloning to motif
     list_of_features=look_for_features(path_to_txt_file_with_motif_and_frag, current_motif)
     print(list_of_features)
+    after_look_for_motif = time.perf_counter()
+    print("look for features {0}".format(after_look_for_motif - after_annotate))
     # step 6: get the fragments and smiles of the match
     if molid is not None:
         list_with_fragments_and_smiles=fetch_fragments_and_annotations_for_molid(molid, path_to_results_db_file)
+        after_get_fragments = time.perf_counter()
+        print("fetch fragments {0}".format(after_get_fragments - after_look_for_motif))
         search_for_smiles(list_of_features,list_with_fragments_and_smiles)
+        after_get_smiles = time.perf_counter()
+        print("search smiles {0}".format(after_get_smiles - after_get_fragments))
         #search_for_smiles(list_of_features, list_with_fragments_and_smiles)
     # step 7:
 
