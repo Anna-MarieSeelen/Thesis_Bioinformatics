@@ -30,6 +30,7 @@ from rdkit import Chem
 from rdkit.Chem.Descriptors import MolWt
 import time
 from rdkit.Chem import rdFMCS
+import shutil
 
 
 #functions
@@ -212,32 +213,43 @@ def make_list_of_losses(list_with_fragments_and_smiles):
     print(list_with_losses)
     return(list_with_losses)
 
-def make_regex_for_loss(parent_string,fragment_string):
+def get_smiles_of_loss(parent_string,fragment_string):
     """
+    Takes the smiles of a parent ion and fragment ion and returns the smiles of the neutral loss
 
-    :param parent_string:
-    :param fragment_string:
-    :return:
+    :param parent_string: str, smiles of the precursor ion
+    :param fragment_string: str, smiles of the annotated fragment
+    :return: str, smiles of the neutral loss
     """
     parent = Chem.MolFromSmiles(parent_string)
     fragment = Chem.MolFromSmiles(fragment_string)
     neutral_loss = Chem.ReplaceCore(parent, fragment)
-    rs = Chem.GetMolFrags(neutral_loss, asMols=True)
-    smiles_neutral_loss = ""
-    for i in rs:
-        part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
-                                        Chem.MolToSmiles(i)).group(2)
-        smiles_neutral_loss+=part_of_smiles_loss
-    return smiles_neutral_loss
+    # if the fragment smiles is not present in the parent smiles then neutral loss could be None
+    if neutral_loss != None:
+        neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
+        smiles_neutral_loss = ""
+        # If the fragment smiles is in the middle of the precursor smiles, you get a list of neutral losses
+        for loss in neutral_loss:
+            part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
+                                        Chem.MolToSmiles(loss)).group(2)
+            # the neutral loss(es) are added together here into one string
+            smiles_neutral_loss+=part_of_smiles_loss
+        return smiles_neutral_loss
+    else:
+        return None
 
 def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
     """
+    Makes a list of features of the mass2motif that are annotated by MAGMa
 
-    :param list_of_features:
-    :param list_with_fragments_and_smiles:
+    :param list_of_features: list of feature beloning to the mass2motif which is according to MassQL present in the
+    spectrum.
+    :param list_with_fragments_and_smiles: list of tuples containing the fragment m/z and smiles for each fragment of
+    the matched compound
     :return:
     """
     # for every feature in the motif
+    list_with_annotated_features=[]
     for feature in list_of_features:
         # if the feature in the motif is a loss
         if re.search(r'loss', feature) != None:
@@ -247,10 +259,10 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
             for index,rounded_loss in enumerate(list_of_losses):
                 # if you did find a match up to 2 decimals
                 if float(rounded_loss) == float(re.search(r'\_(.*\..{2}).*', feature).group(1)):
-                    # then retrieve the corresponding fragment string and the parent string beloning to the loss
+                    # then retrieve the corresponding fragment string and the parent string belonging to the loss
                     precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
-                    smiles_neutral_loss=make_regex_for_loss(precusor_smiles, fragment_smiles)
+                    smiles_neutral_loss=get_smiles_of_loss(precusor_smiles, fragment_smiles)
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
@@ -258,6 +270,7 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                                                                           rounding=ROUND_DOWN)
                         if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
                             print(smiles_neutral_loss)
+                            list_with_annotated_features.append([feature,smiles_neutral_loss])
                     else:
                         return None
         # if feature is not a loss
@@ -267,15 +280,43 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                 rounded_fragment = Decimal(fragment_mz).quantize(Decimal('.01'),
                                                                           rounding=ROUND_DOWN)
                 if float(rounded_fragment)==float(re.search(r'\_(.*\..{2}).*', feature).group(1)):
-                    print(fragment_smiles)
-    #TODO: fix output here
+                    list_with_annotated_features.append([feature, fragment_smiles])
+    return list_with_annotated_features
+
+def make_output_file():
+    #take over the motif_massql_querries output file
+    #select the current motif
+    #print a list of fragment and annotation there
+    # there should be a third column with count
+    # if list of fragment and annotation == same as a second list with fragment + annotation then +1 count
     return None
 
-def write_output_to_file():
+def write_output_to_file(path_to_txt_file_with_motif_and_frag, list_with_annotated_features):
+    file_path = Path(r"motif_features_annotated.txt")
+    shutil.copyfile(path_to_txt_file_with_motif_and_frag, file_path)
+    file = open(file_path, "w")
+
+    for index, row in df_motifs_to_frag.iterrows():
+         if index in list_of_selected_motifs:
+             file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
+                                                            make_MassQL_search(
+                                                                df_motifs_to_frag.at[index, "Fragment+Probability"])))
+             file.write("\n")
+    file.close()
+    return os.path.abspath(file_path)
     # each time we will write a annotation for a similar fragment in the output file
     # tab separated file with motif feature annotation_1 annotation_2 annotation_3
     # TODO: for one feature you might find multiple annotations
     # TODO: kijken naar welke dingen je wil returnen en hoe de output van dit hele script eruit moet zien
+    # spectrum_file = open(file_path, "w")
+    # for index, row in df_motifs_to_frag.iterrows():
+    #     if index in list_of_selected_motifs:
+    #         spectrum_file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
+    #                                                        make_MassQL_search(
+    #                                                            df_motifs_to_frag.at[index, "Fragment+Probability"])))
+    #         spectrum_file.write("\n")
+    # spectrum_file.close()
+    # return os.path.abspath(file_path)
     return None
 
 def main():
@@ -319,11 +360,11 @@ def main():
         list_with_fragments_and_smiles=fetch_fragments_and_annotations_for_molid(molid, path_to_results_db_file)
         after_get_fragments = time.perf_counter()
         print("fetch fragments {0}".format(after_get_fragments - after_look_for_motif))
-        search_for_smiles(list_of_features,list_with_fragments_and_smiles)
+        list_with_annotated_features=search_for_smiles(list_of_features,list_with_fragments_and_smiles)
         after_get_smiles = time.perf_counter()
         print("search smiles {0}".format(after_get_smiles - after_get_fragments))
-        #search_for_smiles(list_of_features, list_with_fragments_and_smiles)
-    # step 7:
+        # step 7:
+        write_output_to_file(path_to_txt_file_with_motif_and_frag, list_with_annotated_features)
 
 if __name__ == "__main__":
     main()
