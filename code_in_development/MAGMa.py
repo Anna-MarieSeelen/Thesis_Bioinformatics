@@ -295,7 +295,7 @@ def write_output_to_file(path_to_txt_file_with_motif_and_frag, list_with_annotat
     file_path = Path(r"motif_features_annotated.txt")
     shutil.copyfile(path_to_txt_file_with_motif_and_frag, file_path)
     file = open(file_path, "w")
-
+    # TODO: change it into a pandas dataframe its way too hard this way
     for index, row in df_motifs_to_frag.iterrows():
          if index in list_of_selected_motifs:
              file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
