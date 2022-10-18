@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env make_pdf_with_smiles
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
