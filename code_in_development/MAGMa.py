@@ -31,6 +31,7 @@ from rdkit.Chem.Descriptors import MolWt
 import time
 from rdkit.Chem import rdFMCS
 import shutil
+import pandas as pd
 
 
 #functions
@@ -249,7 +250,6 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
     :return:
     """
     # for every feature in the motif
-    list_with_annotated_features=[]
     for feature in list_of_features:
         # if the feature in the motif is a loss
         if re.search(r'loss', feature) != None:
@@ -270,7 +270,8 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                                                                           rounding=ROUND_DOWN)
                         if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
                             print(smiles_neutral_loss)
-                            list_with_annotated_features.append([feature,smiles_neutral_loss])
+                            list_with_annotated_features=[feature,smiles_neutral_loss]
+                            return list_with_annotated_features
                     else:
                         return None
         # if feature is not a loss
@@ -280,47 +281,86 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                 rounded_fragment = Decimal(fragment_mz).quantize(Decimal('.01'),
                                                                           rounding=ROUND_DOWN)
                 if float(rounded_fragment)==float(re.search(r'\_(.*\..{2}).*', feature).group(1)):
-                    list_with_annotated_features.append([feature, fragment_smiles])
-    return list_with_annotated_features
+                    count=1
+                    list_with_annotated_features=[feature, fragment_smiles, count]
+                    return list_with_annotated_features
 
-def make_output_file():
-    #take over the motif_massql_querries output file
-    #select the current motif
-    #print a list of fragment and annotation there
-    # there should be a third column with count
-    # if list of fragment and annotation == same as a second list with fragment + annotation then +1 count
-    return None
+def make_output_file(path_to_txt_file_with_motif_and_frag):
+    """
+    Makes a copy of a tab-separated file, removes the last column and puts the file in a dataframe
 
-def write_output_to_file(path_to_txt_file_with_motif_and_frag, list_with_annotated_features):
+    :param path_to_txt_file_with_motif_and_frag: str, path to the output file from make_pdf_with_smiles.py in which each
+    feature of each mass2motif is indicated.
+    :return: tuple with the filepath of the output file and a dataframe with motifs and features
+    """
+    # This function should be executed one time and then you just continue adding stuff to dataframe
     file_path = Path(r"motif_features_annotated.txt")
     shutil.copyfile(path_to_txt_file_with_motif_and_frag, file_path)
-    file = open(file_path, "w")
-    # TODO: change it into a pandas dataframe its way too hard this way
-    for index, row in df_motifs_to_frag.iterrows():
-         if index in list_of_selected_motifs:
-             file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
-                                                            make_MassQL_search(
-                                                                df_motifs_to_frag.at[index, "Fragment+Probability"])))
-             file.write("\n")
-    file.close()
-    return os.path.abspath(file_path)
+    df_with_motifs=pd.read_csv(file_path, sep="    ", engine='python', header=None)
+    df_with_motifs.columns=["motif_name", "features", "massql_query"]
+    df_with_motifs.index=df_with_motifs["motif_name"]
+    del df_with_motifs["massql_query"]
+    # add a column where a list of lists of feature, annotation and count can go
+    df_with_motifs["LoL_feature_annotation_counts"] = ""
+    return (os.path.abspath(file_path), df_with_motifs)
+
+def write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, current_motif):
+    for index, row in df_with_motifs.iterrows():
+        for cell in row:
+            if index == current_motif:
+                if c
+                if df_with_motifs.at[cell, "LoL_feature_annotation_counts"] != "":
+                    print(cell)
+                    print(type(cell))
+                    for list_with_feature in list(cell):
+                        if list_with_feature[0] == list_with_annotated_features[0]:
+                            if list_with_feature[1] == list_with_annotated_features[1]:
+                                list_with_feature[2] = int(list_with_feature[2]) + 1
+                            else:
+                                cell.append(list_with_annotated_features)
+                        else:
+                            cell.append(list_with_annotated_features)
+                else:
+                    df_with_motifs.at[cell, "LoL_feature_annotation_counts"]=list(list_with_annotated_features)
+
+
+        # last_feature = re.search(r'feature\_(.*)\+\_annotation\_(.*)\+count', column_names[-1]).group(1)
+        # if last_feature == list_with_annotated_features[0]:
+        #     annotation_number = int(
+        #         re.search(r'feature\_(.*)\+\_annotation\_(.*)\+count', column_names[-1]).group(2)) + 1
+        #     df[""]
+
+
+    # if cell in df_doc_to_smiles.index.values.tolist():
+    #     if df_doc_to_smiles.at[cell, "smiles"] != "":
+    #         amount_of_smiles += 1
+
+    # df_motif_list_of_lists_feature = df_with_motifs[["Fragment+Probability"]].aggregate({"Fragment+Probability": list})
+    # extract the last column name and extract that
+    # f = lambda x: 'feature_{}+annotation_{}+count'.format(list_with_annotated_features[0], (x + 1))
+    # df_motif_and_sep_fragments = df_motif_list_of_lists_feature["Fragment+Probability"].apply(pd.Series).fillna(
+    #     '').rename(columns=f)
     # each time we will write a annotation for a similar fragment in the output file
     # tab separated file with motif feature annotation_1 annotation_2 annotation_3
     # TODO: for one feature you might find multiple annotations
     # TODO: kijken naar welke dingen je wil returnen en hoe de output van dit hele script eruit moet zien
-    # spectrum_file = open(file_path, "w")
-    # for index, row in df_motifs_to_frag.iterrows():
-    #     if index in list_of_selected_motifs:
-    #         spectrum_file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
-    #                                                        make_MassQL_search(
-    #                                                            df_motifs_to_frag.at[index, "Fragment+Probability"])))
-    #         spectrum_file.write("\n")
-    # spectrum_file.close()
-    # return os.path.abspath(file_path)
-    return None
+    return df_with_motifs
+
+def write_output_to_file(df, filename):
+    file = open(file_path, "w")
+    spectrum_file = open(file_path, "w")
+    for index, row in df_motifs_to_frag.iterrows():
+        if index in list_of_selected_motifs:
+            spectrum_file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
+                                                           make_MassQL_search(
+                                                               df_motifs_to_frag.at[index, "Fragment+Probability"])))
+            spectrum_file.write("\n")
+    spectrum_file.close()
+    return os.path.abspath(file_path)
 
 def main():
     #main function of the script
+    #this whole script is for the annotation of 1 spectrum
     #step 0: parse input
     before_script=time.perf_counter()
     path_to_structures_database=argv[1]
@@ -364,7 +404,13 @@ def main():
         after_get_smiles = time.perf_counter()
         print("search smiles {0}".format(after_get_smiles - after_get_fragments))
         # step 7:
-        write_output_to_file(path_to_txt_file_with_motif_and_frag, list_with_annotated_features)
+        # if the current motif is the past motif then add to list of lists
+        # else add the lists of lists to pandas dataframe
+        # start a new list of lists
+        # at the end separate the lists of lists on their own columns
+        file_path, df_with_motifs = make_output_file(path_to_txt_file_with_motif_and_frag)
+        updated_df_with_motifs=write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, current_motif)
+        print(updated_df_with_motifs)
 
 if __name__ == "__main__":
     main()
