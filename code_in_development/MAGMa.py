@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env MAGMa
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
@@ -29,13 +29,11 @@ import ast
 from rdkit import Chem
 from rdkit.Chem.Descriptors import MolWt
 import time
-from rdkit.Chem import rdFMCS
 import shutil
 import pandas as pd
 
-
 #functions
-def initialize_db_to_save_results(path_to_store_results_db,path_to_spectrum_file):
+def initialize_db_to_save_results(path_to_store_results_db: str,path_to_spectrum_file: str):
     """
     Initializes a sqlite database using the MAGMa CL init_db function to store annotation results from MAGMa for spectrum
 
@@ -46,9 +44,11 @@ def initialize_db_to_save_results(path_to_store_results_db,path_to_spectrum_file
     :return: str containing the realpath to the results database from MAGMa
     """
     #generate a good database name with the spectrum id and motif in it.
-    spectrum_name=re.search(r'(spectrum.*)(HMDB.*)(.txt)', path_to_spectrum_file).group(2)
+    path, filename = os.path.split(path_to_spectrum_file)
+    identifier=re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(3)
+    motif=re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(2)
     #realpath of the database
-    file_path_out = Path(r"{0}/MAGMa_db_{1}.sqlite".format(path_to_store_results_db, spectrum_name))
+    file_path_out = Path(r"{0}/MAGMa_db_{1}.sqlite".format(path_to_store_results_db, identifier))
     #if you try to annotate something in an existing database it will go wrong, so if the database exists remove it.
     if os.path.exists(file_path_out):
         os.remove(file_path_out)
@@ -60,9 +60,11 @@ def initialize_db_to_save_results(path_to_store_results_db,path_to_spectrum_file
     # script from stopping.
     except subprocess.CalledProcessError:
         pass
-    return file_path_out
+    return (file_path_out, identifier, motif)
 
-def add_spectrum_to_be_annotated_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf', ionisation=1):
+def add_spectrum_to_be_annotated_into_db(path_to_results_db_file: str, path_to_spectrum_file: str,
+                                             abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01,
+                                             spectrum_file_type='mgf', ionisation=1) -> None:
     """
     Adds the spectrum to be annotated in the sqlite results database using the MAGMa CL read_ms_data function.
 
@@ -79,11 +81,16 @@ def add_spectrum_to_be_annotated_into_db(path_to_results_db_file, path_to_spectr
     :param ionisation: {1, -1}, indicates the ionisation mode, -1 is negative, 1 is positive (default: 1)
     :return: None
     """
-    cmd = 'magma read_ms_data -f {0} -i {1} -a {2} -p {3} -q {4} {5} {6}'.format(spectrum_file_type,ionisation,abs_intensity_thres, mz_precision_ppm, mz_precision_abs, path_to_spectrum_file, path_to_results_db_file)
+    cmd = 'magma read_ms_data -f {0} -i {1} -a {2} -p {3} -q {4} {5} {6}'.format(spectrum_file_type, ionisation,
+                                                                                 abs_intensity_thres, mz_precision_ppm,
+                                                                                 mz_precision_abs,
+                                                                                 path_to_spectrum_file,
+                                                                                 path_to_results_db_file)
     e = subprocess.check_call(cmd, shell=True,stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
     return None
 
-def annotate_spectrum_with_MAGMa(path_to_structures_database,path_to_results_db_file, max_num_break_bonds=10, structure_db="hmdb", ncpus=1):
+def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_results_db_file: str,
+                                     max_num_break_bonds=10, structure_db="hmdb", ncpus=1) -> None:
     """
     Finds matches for spectrum in structure database and annotates generated fragments using MAGMa CL annotate function.
 
@@ -97,11 +104,13 @@ def annotate_spectrum_with_MAGMa(path_to_structures_database,path_to_results_db_
     :param ncpus: int, number of parallel cpus to use for annotation (default: 1)
     :return: None
     """
-    cmd = "magma annotate -b {0} -s {1} -o {2} -n {3} {4}".format(max_num_break_bonds,structure_db,path_to_structures_database,ncpus, path_to_results_db_file)
+    cmd = "magma annotate -b {0} -s {1} -o {2} -n {3} {4}".format(max_num_break_bonds, structure_db,
+                                                                  path_to_structures_database, ncpus,
+                                                                  path_to_results_db_file)
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     return None
 
-def get_molid_of_matched_compound(path_to_results_db_file, identifier_spectrum):
+def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spectrum: str):
     """
     Retrieves the molid for the compound with the same HMDB identifier as the HMDB identifier of the spectrum file.
 
@@ -139,7 +148,7 @@ def get_molid_of_matched_compound(path_to_results_db_file, identifier_spectrum):
         else:
             return None
 
-def fetch_fragments_and_annotations_for_molid(molid,path_to_results_db_file):
+def fetch_fragments_and_annotations_for_molid(molid: int,path_to_results_db_file: str) -> list:
     """
     Makes list of tuples containing the fragment m/z and smiles for each fragment of indicated molid
 
@@ -156,7 +165,7 @@ def fetch_fragments_and_annotations_for_molid(molid,path_to_results_db_file):
     list_with_fragments_and_smiles=cur.fetchall()
     return list_with_fragments_and_smiles
 
-def parse_line_with_motifs_and_querries(line):
+def parse_line_with_motifs_and_querries(line: str) -> tuple:
     """
     Takes a line in a tab separated file and separates it into motif, feature list and massql query
     :param line: str, line in a tab separated file containing the motif, list of features and the massql query
@@ -167,7 +176,7 @@ def parse_line_with_motifs_and_querries(line):
     query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
     return motif,feature_list,query
 
-def look_for_features(txt_file_with_motif_and_frag, current_motif):
+def look_for_features(txt_file_with_motif_and_frag: str, current_motif: str) -> list:
     """
     Returns the list of features that make up the motif that are according to MassQL present in the spectrum file.
 
@@ -175,7 +184,7 @@ def look_for_features(txt_file_with_motif_and_frag, current_motif):
     of each mass2motif is indicated.
     :param current_motif: str, motif in the name of the spectrum file, so the motif, which is according to MassQL,
     present in the spectrum.
-    :return: list of feature beloning to the mass2motif which is according to MassQL present in the spectrum.
+    :return: list of feature belonging to the mass2motif which is according to MassQL present in the spectrum.
     """
     lines = (open(txt_file_with_motif_and_frag))
     print("opened file")
@@ -184,6 +193,8 @@ def look_for_features(txt_file_with_motif_and_frag, current_motif):
         line = line.replace('\n', '')
         motif, features_list, query = parse_line_with_motifs_and_querries(line)
         features_list_1 = ast.literal_eval(features_list)
+        print(motif)
+        print(current_motif)
         if motif == current_motif:
             list_of_features=[]
             for object in features_list_1:
@@ -191,7 +202,7 @@ def look_for_features(txt_file_with_motif_and_frag, current_motif):
                 list_of_features.append(object[0])
             return(list_of_features)
 
-def make_list_of_losses(list_with_fragments_and_smiles):
+def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     """
     Makes a list of the Da of the losses between the parent mass and the annotated fragments
 
@@ -214,7 +225,7 @@ def make_list_of_losses(list_with_fragments_and_smiles):
     print(list_with_losses)
     return(list_with_losses)
 
-def get_smiles_of_loss(parent_string,fragment_string):
+def get_smiles_of_loss(parent_string: str,fragment_string: str):
     """
     Takes the smiles of a parent ion and fragment ion and returns the smiles of the neutral loss
 
@@ -239,18 +250,22 @@ def get_smiles_of_loss(parent_string,fragment_string):
     else:
         return None
 
-def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
+def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list):
     """
-    Makes a list of features of the mass2motif that are annotated by MAGMa
+    Makes a list of lists of features of the mass2motif that are annotated by MAGMa
 
-    :param list_of_features: list of feature beloning to the mass2motif which is according to MassQL present in the
+    :param list_of_features: list of feature belonging to the mass2motif which is according to MassQL present in the
     spectrum.
     :param list_with_fragments_and_smiles: list of tuples containing the fragment m/z and smiles for each fragment of
     the matched compound
-    :return:
+    :return: list_with_annotated_features: list of lists containing with each list containing the name of the feature,
+    the smiles annotation by magma and the count which is 1.
     """
     # for every feature in the motif
+    print(list_of_features)
     for feature in list_of_features:
+        # more than 1 feature could be annotated by MAGMa so make a list of lists with
+        list_with_annotated_features=[]
         # if the feature in the motif is a loss
         if re.search(r'loss', feature) != None:
             # make a list of losses from the list_with_fragments_and_smiles from MAGMa
@@ -269,8 +284,8 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                         rounded_mol_weight_from_smiles=Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
                                                                           rounding=ROUND_DOWN)
                         if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
-                            print(smiles_neutral_loss)
-                            list_with_annotated_features=[feature,smiles_neutral_loss]
+                            count = 1
+                            list_with_annotated_features.append([feature,smiles_neutral_loss, count])
                             return list_with_annotated_features
                     else:
                         return None
@@ -282,97 +297,96 @@ def search_for_smiles(list_of_features,list_with_fragments_and_smiles):
                                                                           rounding=ROUND_DOWN)
                 if float(rounded_fragment)==float(re.search(r'\_(.*\..{2}).*', feature).group(1)):
                     count=1
-                    list_with_annotated_features=[feature, fragment_smiles, count]
+                    list_with_annotated_features.append([feature,fragment_smiles, count])
                     return list_with_annotated_features
 
-def make_output_file(path_to_txt_file_with_motif_and_frag):
+def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     """
-    Makes a copy of a tab-separated file, removes the last column and puts the file in a dataframe
+    Makes a copy of a tab-separated file, puts the file in a dataframe and removes the last column.
 
-    :param path_to_txt_file_with_motif_and_frag: str, path to the output file from make_pdf_with_smiles.py in which each
-    feature of each mass2motif is indicated.
+    :param path_to_txt_file_with_motif_and_frag: str, path to the output file from make_pdf_with_smiles.py which is a
+    tab delimited text file with the selected motif, its fragments+probabilities and the MassQL query
     :return: tuple with the filepath of the output file and a dataframe with motifs and features
     """
     # This function should be executed one time and then you just continue adding stuff to dataframe
-    file_path = Path(r"motif_features_annotated.txt")
+    path,filename = os.path.split(path_to_txt_file_with_motif_and_frag)
+    file_path = Path(rf"{path}/motif_features_annotated.txt")
+    print(file_path)
     shutil.copyfile(path_to_txt_file_with_motif_and_frag, file_path)
     df_with_motifs=pd.read_csv(file_path, sep="    ", engine='python', header=None)
     df_with_motifs.columns=["motif_name", "features", "massql_query"]
-    df_with_motifs.index=df_with_motifs["motif_name"]
+    df_with_motifs=df_with_motifs.set_index(["motif_name"])
     del df_with_motifs["massql_query"]
     # add a column where a list of lists of feature, annotation and count can go
     df_with_motifs["LoL_feature_annotation_counts"] = ""
     return (os.path.abspath(file_path), df_with_motifs)
 
-def write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, current_motif):
-    for index, row in df_with_motifs.iterrows():
-        for cell in row:
-            if index == current_motif:
-                if c
-                if df_with_motifs.at[cell, "LoL_feature_annotation_counts"] != "":
-                    print(cell)
-                    print(type(cell))
-                    for list_with_feature in list(cell):
-                        if list_with_feature[0] == list_with_annotated_features[0]:
-                            if list_with_feature[1] == list_with_annotated_features[1]:
-                                list_with_feature[2] = int(list_with_feature[2]) + 1
-                            else:
-                                cell.append(list_with_annotated_features)
-                        else:
-                            cell.append(list_with_annotated_features)
+def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_motifs: pd.DataFrame,
+                                    current_motif: str) -> pd.DataFrame:
+    """
+    Writes the obtained list of annotations for each feature to a dataframe.
+
+    :param list_with_annotated_features: list of lists containing with each list containing the name of the feature,
+    the smiles annotation by magma and the count which is 1.
+    :param df_with_motifs: Pandas Dataframe with the motifs as an index and in one column a list
+    of lists containing the feature, probability of the feature, the ratio of associated document with the feature,
+    a list of the documents that contain the feature for every selected feature. The second column is a column to put
+    the smiles annotations for the features
+    :param current_motif: str, motif in the name of the spectrum file, so the motif, which is according to MassQL,
+    present in the spectrum.
+    :return: df_with_motifs, but the list_with_annotated_features have been added to the second column or the counts was
+    increased if the same feature and annotated was already present in the lists of lists
+    """
+    for feature in list_with_annotated_features:
+        cell=df_with_motifs.at[current_motif,"LoL_feature_annotation_counts"]
+        # if there are already annotations in the cell see if they are similar to the current annotation
+        if cell!="":
+            for list_with_feature in cell:
+                if list_with_feature[0] == feature[0]:
+                    if list_with_feature[1] == feature[1]:
+                        list_with_feature[2] = int(list_with_feature[2]) + 1
+                    else:
+                        cell.append(feature)
                 else:
-                    df_with_motifs.at[cell, "LoL_feature_annotation_counts"]=list(list_with_annotated_features)
-
-
-        # last_feature = re.search(r'feature\_(.*)\+\_annotation\_(.*)\+count', column_names[-1]).group(1)
-        # if last_feature == list_with_annotated_features[0]:
-        #     annotation_number = int(
-        #         re.search(r'feature\_(.*)\+\_annotation\_(.*)\+count', column_names[-1]).group(2)) + 1
-        #     df[""]
-
-
-    # if cell in df_doc_to_smiles.index.values.tolist():
-    #     if df_doc_to_smiles.at[cell, "smiles"] != "":
-    #         amount_of_smiles += 1
-
-    # df_motif_list_of_lists_feature = df_with_motifs[["Fragment+Probability"]].aggregate({"Fragment+Probability": list})
-    # extract the last column name and extract that
-    # f = lambda x: 'feature_{}+annotation_{}+count'.format(list_with_annotated_features[0], (x + 1))
-    # df_motif_and_sep_fragments = df_motif_list_of_lists_feature["Fragment+Probability"].apply(pd.Series).fillna(
-    #     '').rename(columns=f)
-    # each time we will write a annotation for a similar fragment in the output file
-    # tab separated file with motif feature annotation_1 annotation_2 annotation_3
-    # TODO: for one feature you might find multiple annotations
-    # TODO: kijken naar welke dingen je wil returnen en hoe de output van dit hele script eruit moet zien
+                    cell.append(feature)
+        # if there are no annotations in the cell just add the list containing the feature, annotation and count.
+        else:
+            df_with_motifs.at[current_motif,"LoL_feature_annotation_counts"] = [(feature),]
     return df_with_motifs
 
-def write_output_to_file(df, filename):
-    file = open(file_path, "w")
-    spectrum_file = open(file_path, "w")
-    for index, row in df_motifs_to_frag.iterrows():
-        if index in list_of_selected_motifs:
-            spectrum_file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
-                                                           make_MassQL_search(
-                                                               df_motifs_to_frag.at[index, "Fragment+Probability"])))
-            spectrum_file.write("\n")
-    spectrum_file.close()
+def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -> str:
+    """Outputs a tab delimited file with the selected motifs, their features and the smiles annotations
+
+    :param updated_df_with_motifs: Pandas Dataframe with the motifs as an index and in one column a list
+    of lists containing the feature, probability of the feature, the ratio of associated document with the feature,
+    a list of the documents that contain the feature for every selected feature. The second column contains a list of
+    lists with each list containing the name of the feature, the SMILES annotation by MAGMa and the count.
+    :param file_path: str, the filepath of the output file with the annotations which is in the same directory as
+    the text file from make_pdf_with_smiles.py.
+    :return: filepath where the results tab delimited file with the selected motifs, their features and the smiles
+    annotations is stored.
+    """
+    # when you are at the end of the spectrum list you add the things to the dataframe
+    output_file = open(file_path, "w")
+    for index, row in updated_df_with_motifs.iterrows():
+        output_file.write("{0}    {1}    {2}".format(index, updated_df_with_motifs.at[index, "features"],
+                                                               updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]))
+        output_file.write("\n")
+    output_file.close()
     return os.path.abspath(file_path)
 
 def main():
     #main function of the script
-    #this whole script is for the annotation of 1 spectrum
+    # this script is made to return the smiles corresponding to the features of a motif of one spectrum_file_from_massql
     #step 0: parse input
     before_script=time.perf_counter()
     path_to_structures_database=argv[1]
     path_to_spectrum_file=argv[2]
     path_to_store_results_db=argv[3]
     path_to_txt_file_with_motif_and_frag=argv[4]
-    # this script is made to return the smiles corresponding to the features of a motif of one spectrum_file_from_massql
-    # after parsing the name of the spectrum file you will get this:
-    identifier="HMDB0000191"
-    current_motif="gnps_motif_38.m2m"
-    #step 1: initialize database to save results from MAGMa
-    path_to_results_db_file=initialize_db_to_save_results(path_to_store_results_db, path_to_spectrum_file)
+    #step 1: parse name of spectrum file and initialize database to save results from MAGMa
+    (path_to_results_db_file, identifier, current_motif) = initialize_db_to_save_results(path_to_store_results_db,
+                                                                                         path_to_spectrum_file)
     after_init=time.perf_counter()
     print("init database {0}".format(after_init-before_script))
     # step 2: add spectrum to be annotated into the results database
@@ -386,31 +400,30 @@ def main():
                       ncpus=1)
     after_annotate=time.perf_counter()
     print("annotate spectrum {0}".format(after_annotate-after_add_spectrum))
-    # step 4: get identifiers of matches
+    # step 4: get the molid that has a HMDB identifier that corresponds to the HMDB identifier of the spectrum
     molid=get_molid_of_matched_compound(path_to_results_db_file, identifier)
     after_annotate=time.perf_counter()
     print("get molids {0}".format(after_annotate-after_add_spectrum))
-    #step 5: search for the features beloning to motif
-    list_of_features=look_for_features(path_to_txt_file_with_motif_and_frag, current_motif)
-    print(list_of_features)
-    after_look_for_motif = time.perf_counter()
-    print("look for features {0}".format(after_look_for_motif - after_annotate))
-    # step 6: get the fragments and smiles of the match
     if molid is not None:
+        # step 5: get a list of features of the current motif
+        list_of_features = look_for_features(path_to_txt_file_with_motif_and_frag, current_motif)
+        after_look_for_motif = time.perf_counter()
+        print("look for features {0}".format(after_look_for_motif - after_annotate))
+        # step 6: get a list of the annotated fragments and smiles of the matched compound
         list_with_fragments_and_smiles=fetch_fragments_and_annotations_for_molid(molid, path_to_results_db_file)
         after_get_fragments = time.perf_counter()
         print("fetch fragments {0}".format(after_get_fragments - after_look_for_motif))
+        # step 7: look for matches in the two lists so you end up with a list with only smiles for the features of the
+        # current motif
         list_with_annotated_features=search_for_smiles(list_of_features,list_with_fragments_and_smiles)
         after_get_smiles = time.perf_counter()
         print("search smiles {0}".format(after_get_smiles - after_get_fragments))
-        # step 7:
-        # if the current motif is the past motif then add to list of lists
-        # else add the lists of lists to pandas dataframe
-        # start a new list of lists
-        # at the end separate the lists of lists on their own columns
+        # step 8: make a dataframe to put the annotations in for the features
         file_path, df_with_motifs = make_output_file(path_to_txt_file_with_motif_and_frag)
-        updated_df_with_motifs=write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, current_motif)
-        print(updated_df_with_motifs)
+        # step 9: adds the new annotations for the features from the spectrum file in the database
+        df_with_motifs=write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, current_motif)
+        # step 10: writes the dataframe to a tab-delimited file
+        write_output_to_file(df_with_motifs, file_path)
 
 if __name__ == "__main__":
     main()
