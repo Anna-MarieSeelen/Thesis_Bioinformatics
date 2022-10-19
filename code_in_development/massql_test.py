@@ -41,6 +41,8 @@ from matchms import Spectrum
 import csv
 from matchms.importing import load_from_mgf
 from matchms.exporting import save_as_mgf
+import pyteomics.mgf as py_mgf
+from typing import List
 
 # functions
 
@@ -101,6 +103,7 @@ def make_spectrum_file_for_id2(motif, df_json, spectrum_id, path_to_store_spectr
     HMDB_id = re.search(r'(HMDB:)(HMDB\d*)(-\d*)(.*)', df_json.loc[spectrum_id, "Compound_Name"]).group(2)
     # in the current (10-2022) structures database of HMDB a longer identifier is used, so the older identifier from GNPS
     # needs to be adjusted
+    # TODO: change this to 4 later, when  you know the output is right!
     adj_HMDB_id = HMDB_id[:3] + '00' + HMDB_id[3:]
     file_path = Path(fr"{path_to_store_spectrum_files}/spectrum_{motif}_{adj_HMDB_id}.txt")
 
@@ -109,7 +112,7 @@ def make_spectrum_file_for_id2(motif, df_json, spectrum_id, path_to_store_spectr
         for spectrum in spectra_from_file:
             print(spectrum.get("spectrumid"))
             if spectrum.get("spectrumid") == spectrum_id:
-                print(spectrum.get("spectrum_id"))
+                # in this function I get an error but don't know why
                 save_as_mgf(spectrum, file_path)
 
     # if os.path.exists(file_path):
