@@ -154,6 +154,63 @@ def make_list_of_selected_motifs(df_motifs_to_doc: pd.DataFrame, df_doc_to_smile
                 list_of_selected_motifs.append(index)
     return list_of_selected_motifs
 
+def calculate_doc_ratio_for_feature_1(feature, motif, features_list_of_lists_with_counts, mgf_file,
+                                     df_motifs_to_doc: pd.DataFrame) -> pd.DataFrame:
+    """
+    Retrieves the associated documents with a feature and the document ratio for the feature.
+
+    :param feature: the feature name for which the document ratio should be calculated
+    :param motif: the motif name of the feature for which the document ratio should be calculated
+    :param features_list_of_lists_with_counts:
+    :param mgf_file: str, path to file downloaded from the GNPS website after a molecular networking job.
+    This file contains all the spectra from the inputted MzML format in a mgf style format.
+    :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
+    column. The last column is a list of lists of the associated document, the probability and the overlap score.
+    :return: a list of lists with each list containing a feature associated with the motif, probability of the feature,
+    the ratio of associated document with the feature, a list of the documents that contain the feature.
+    """
+    documents_that_contain_feature = []
+    num_of_ass_doc_with_feature = 0
+    total_documents_num = len(df_motifs_to_doc.at[motif, "Document+Probability+Overlap"])
+    spectra = list(load_from_mgf(mgf_file))
+    # for every document associated with a motif we will see if the spectrum of the document contains the feature
+    for document in df_motifs_to_doc.at[motif, "Document+Probability+Overlap"]:
+        # for every document associated with each feature for each motif you want to check if the document
+        # contains the feature
+        for spectrum in spectra:
+            # look through all the matchms spectra select the spectrum that has the current document number
+            if int(spectrum.get("scans")) == int(document[0]):
+                # if the feature we are looking at is a loss
+                if re.search(r'loss', feature[0]) != None:
+                    # first calculate all the losses in de spectrum based on the parent mass
+                    spectrum = add_losses(spectrum)
+                    for loss in range(len(spectrum.losses.mz)):
+                        # get the losses with 2 decimal points and round down the number
+                        rounded_loss = Decimal(spectrum.losses.mz[loss]).quantize(Decimal('.01'),
+                                                                                  rounding=ROUND_DOWN)
+                        # if a loss in the spectrum contains the loss in the feature then
+                        # the document contains the loss!
+                        if float(rounded_loss) == float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
+                            num_of_ass_doc_with_feature += 1
+                            documents_that_contain_feature.append(int(document[0]))
+                # if the feature we are looking at is a fragment
+                else:
+                    for fragment in range(len(spectrum.peaks.mz)):
+                        # get the fragment of the spectrum with 2 decimal points and round down the number
+                        rounded_fragment = Decimal(spectrum.peaks.mz[fragment]).quantize(Decimal('.01'),
+                                                                                         rounding=ROUND_DOWN)
+                        # if a fragment in the spectrum is the same as a fragment in the feature
+                        # then the document contains the fragment!
+                        if float(rounded_fragment) == float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
+                            num_of_ass_doc_with_feature += 1
+                            documents_that_contain_feature.append(int(document[0]))
+    # calculate the ratio of the associated document with the feature
+    ratio_of_ass_doc_with_feature = round((num_of_ass_doc_with_feature / total_documents_num), 2)
+    feature.append(ratio_of_ass_doc_with_feature)
+    feature.append(documents_that_contain_feature)
+    features_list_of_lists_with_counts.append(feature)
+    return features_list_of_lists_with_counts
+
 def calculate_doc_ratio_for_feature(mgf_file, list_of_selected_motifs: list, df_motifs_to_frag,
                                      df_motifs_to_doc: pd.DataFrame, minimum_ratio=0) -> pd.DataFrame:
     """
@@ -174,7 +231,7 @@ def calculate_doc_ratio_for_feature(mgf_file, list_of_selected_motifs: list, df_
     feature, probability of the feature, the ratio of associated document with the feature, a list of the documents that
     contain the feature for every selected feature.
     """
-    spectra = list(load_from_mgf(mgf_file))
+
     #create list with 0 to fill the pandas column for the features for now
     #convert 0 to string, because you get a Value error at the end of the function from pandas otherwise
     empty_list = ["0"]*(len(list_of_selected_motifs))
@@ -183,54 +240,18 @@ def calculate_doc_ratio_for_feature(mgf_file, list_of_selected_motifs: list, df_
     df_selected_motif_and_ratio = pd.DataFrame(data)
     df_selected_motif_and_ratio.set_index("motif", inplace=True)
     for motif in list_of_selected_motifs:
+        # list with all features that the motif contains
         features_list_of_lists_with_counts=[]
+        # for every feature you want to calculate the ratio of associated documents with the feature with respect to the
+        # amount of documents associated with the whole motif
         for feature in df_motifs_to_frag.at[motif, "Fragment+Probability"]:
-            documents_that_contain_feature=[]
-            num_of_ass_doc_with_feature=0
-            total_documents_num = len(df_motifs_to_doc.at[motif, "Document+Probability+Overlap"])
-            #for every document associated with a motif we will see if the spectrum of the document contains the feature
-            for document in df_motifs_to_doc.at[motif, "Document+Probability+Overlap"]:
-                # for every document associated with each feature for each motif you want to check if the document
-                # contains the feature
-                for spectrum in spectra:
-                    # look through all the matchms spectra select the spectrum that has the current document number
-                    if int(spectrum.get("scans")) == int(document[0]):
-                        # if the feature we are looking at is a loss
-                        if re.search(r'loss', feature[0]) != None:
-                            # first calculate all the losses in de spectrum based on the parent mass
-                            spectrum=add_losses(spectrum)
-                            for loss in range(len(spectrum.losses.mz)):
-                                # get the losses with 2 decimal points and round down the number
-                                rounded_loss = Decimal(spectrum.losses.mz[loss]).quantize(Decimal('.01'),
-                                                                                             rounding=ROUND_DOWN)
-                                # if a loss in the spectrum contains the loss in the feature then
-                                # the document contains the loss!
-                                if float(rounded_loss)==float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
-                                    num_of_ass_doc_with_feature+=1
-                                    documents_that_contain_feature.append(int(document[0]))
-                        #if the feature we are looking at is a fragment
-                        else:
-                            for fragment in range(len(spectrum.peaks.mz)):
-                                # get the fragment of the spectrum with 2 decimal points and round down the number
-                                rounded_fragment = Decimal(spectrum.peaks.mz[fragment]).quantize(Decimal('.01'),
-                                                                                                 rounding=ROUND_DOWN)
-                                # if a fragment in the spectrum is the same as a fragment in the feature
-                                # then the document contains the fragment!
-                                if float(rounded_fragment) == float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
-                                    num_of_ass_doc_with_feature+=1
-                                    documents_that_contain_feature.append(int(document[0]))
-            # calculate the ratio of the associated document with the feature
-            ratio_of_ass_doc_with_feature=round((num_of_ass_doc_with_feature/total_documents_num),2)
-            feature.append(ratio_of_ass_doc_with_feature)
-            feature.append(documents_that_contain_feature)
-            features_list_of_lists_with_counts.append(feature)
-
+            calculate_doc_ratio_for_feature_1(feature, motif, features_list_of_lists_with_counts, mgf_file, df_motifs_to_doc)
         #select the features that will be in the massql search based on the ratio of the associated doc with the feature
         #sort the list of lists of features from high to low ratio
         features_list_of_lists_with_counts = sorted(features_list_of_lists_with_counts, key=lambda x: x[2],
                                                     reverse=True)
         #if the highest feature ratio of a motif is below the minimum_ratio (default: 0)
-        # the whole motif will be discarded from the dataframe
+        #the whole motif will be discarded from the dataframe
         if features_list_of_lists_with_counts[0][2] < float(minimum_ratio):
             df_selected_motif_and_ratio=df_selected_motif_and_ratio.drop(motif)
         #if the highest feature ratio of a motif is above the minumum_ratio the motif will be in the dataframe with one
