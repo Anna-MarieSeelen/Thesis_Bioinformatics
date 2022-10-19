@@ -48,21 +48,20 @@ def initialize_db_to_save_results(path_to_store_results_db: str,path_to_spectrum
     identifier=re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(3)
     motif=re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(2)
     #realpath of the database
-    file_path_out = Path(r"{0}/MAGMa_db_{1}.sqlite".format(path_to_store_results_db, identifier))
+    file_path_out = Path(fr"{path_to_store_results_db}/MAGMa_db_{identifier}.sqlite")
     #if you try to annotate something in an existing database it will go wrong, so if the database exists remove it.
     if os.path.exists(file_path_out):
         os.remove(file_path_out)
-    cmd = 'magma init_db {0}'\
-            .format(file_path_out)
+    cmd = f'magma init_db {file_path_out}'
     try:
         e = subprocess.check_call(cmd, shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
     # For some reason the text that MAGMa returns on the command line is seen as an error so include this line to keep
     # script from stopping.
     except subprocess.CalledProcessError:
         pass
-    return (file_path_out, identifier, motif)
+    return file_path_out, identifier, motif
 
-def add_spectrum_to_be_annotated_into_db(path_to_results_db_file: str, path_to_spectrum_file: str,
+def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: str,
                                              abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01,
                                              spectrum_file_type='mgf', ionisation=1) -> None:
     """
@@ -104,9 +103,7 @@ def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_resul
     :param ncpus: int, number of parallel cpus to use for annotation (default: 1)
     :return: None
     """
-    cmd = "magma annotate -b {0} -s {1} -o {2} -n {3} {4}".format(max_num_break_bonds, structure_db,
-                                                                  path_to_structures_database, ncpus,
-                                                                  path_to_results_db_file)
+    cmd = f"magma annotate -b {max_num_break_bonds} -s {structure_db} -o {path_to_structures_database} -n {ncpus} {path_to_results_db_file}"
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     return None
 
@@ -200,7 +197,7 @@ def look_for_features(txt_file_with_motif_and_frag: str, current_motif: str) -> 
             for object in features_list_1:
                 # add the features of the current motif to the list of features 1 by 1.
                 list_of_features.append(object[0])
-            return(list_of_features)
+            return list_of_features
 
 def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     """
@@ -223,7 +220,7 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
             precusor_mz, precusor_smiles = fragment
             list_with_losses.append(precusor_mz)
     print(list_with_losses)
-    return(list_with_losses)
+    return list_with_losses
 
 def get_smiles_of_loss(parent_string: str,fragment_string: str):
     """
@@ -319,7 +316,7 @@ def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     del df_with_motifs["massql_query"]
     # add a column where a list of lists of feature, annotation and count can go
     df_with_motifs["LoL_feature_annotation_counts"] = ""
-    return (os.path.abspath(file_path), df_with_motifs)
+    return os.path.abspath(file_path), df_with_motifs
 
 def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_motifs: pd.DataFrame,
                                     current_motif: str) -> pd.DataFrame:
@@ -369,7 +366,7 @@ def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -
     # when you are at the end of the spectrum list you add the things to the dataframe
     output_file = open(file_path, "w")
     for index, row in updated_df_with_motifs.iterrows():
-        output_file.write("{0}    {1}    {2}".format(index, updated_df_with_motifs.at[index, "features"],
+        output_file.write(f"{index}    {updated_df_with_motifs.at[index, "features"]}    {updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]}".format(index, updated_df_with_motifs.at[index, "features"],
                                                                updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]))
         output_file.write("\n")
     output_file.close()
@@ -385,12 +382,12 @@ def main():
     path_to_store_results_db=argv[3]
     path_to_txt_file_with_motif_and_frag=argv[4]
     #step 1: parse name of spectrum file and initialize database to save results from MAGMa
-    (path_to_results_db_file, identifier, current_motif) = initialize_db_to_save_results(path_to_store_results_db,
+    path_to_results_db_file, identifier, current_motif = initialize_db_to_save_results(path_to_store_results_db,
                                                                                          path_to_spectrum_file)
     after_init=time.perf_counter()
     print("init database {0}".format(after_init-before_script))
     # step 2: add spectrum to be annotated into the results database
-    add_spectrum_to_be_annotated_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000,
+    add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000,
                                          mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
                                          ionisation=1)
     after_add_spectrum=time.perf_counter()
