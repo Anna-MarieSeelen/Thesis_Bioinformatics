@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env make_pdf_with_smiles
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
 Description: takes result csv files of MS2LDA and MS2Query and outputs a pdf that gives an overview of
 motifs and analogs. In addition, it outputs a text file with the selected mass2motifs and their MassQL querries.
 Usage: python3 *name_of_script* *path_to_file_with_MS2Query_csv* *path_file_with_MS2LDA_csv*
-*path_file_with_Motif_fragments_csv*
+*path_file_with_Motif_fragments_csv* *path_with_mgf_file_from_GNPS_with_your_data*
 
     name_of_script: make_pdf_with_smiles.py
     path_to_file_with_MS2Query_csv: output file from the MS2Query.py script with document number and
@@ -14,6 +14,8 @@ Usage: python3 *name_of_script* *path_to_file_with_MS2Query_csv* *path_file_with
     associated with the document
     path_file_with_Motif_fragments_csv: file downloaded from MS2LDA.org with contains the fragments and neutral losses
     and which motif these are associated with
+    path_with_mgf_file_from_GNPS_with_your_data: file downloaded from the GNPS website after a molecular networking job.
+    This file contains all the spectra from the inputted MzML format in a mgf style format.
 """
 
 # import statements
@@ -25,6 +27,9 @@ from fpdf import FPDF
 import re
 from pathlib import Path
 import os
+from matchms.importing import load_from_mgf
+from matchms.filtering import add_losses
+from decimal import *
 
 # functions
 def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_in_motif=5) -> pd.DataFrame:
@@ -104,7 +109,9 @@ def convert_fragments_in_motif_to_df(path_file_with_MS2LDA_csv_fragments: str) -
     df_Motif_fragments["Fragment+Probability"]=df_Motif_fragments[["Feature", "Probability"]].values.tolist()
     # First make a dataframe with the Motifs as index and a second column with a list of lists containing the fragments,
     # and probability
-    df_motif_list_of_lists_feature = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif", as_index=True).aggregate({"Fragment+Probability": list})
+    df_motif_list_of_lists_feature = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif",
+                                                                                                   as_index=True).aggregate(
+        {"Fragment+Probability": list})
     # Make a second dataframe with the Motifs as index and a second column with a list containing the associated
     # features and probability in a separate column
     f = lambda x: 'fragment_{}+probability'.format(x + 1)
@@ -113,6 +120,178 @@ def convert_fragments_in_motif_to_df(path_file_with_MS2LDA_csv_fragments: str) -
     # https://stackoverflow.com/questions/45107523/pandas-convert-list-of-lists-to-multiple-columns
     df_new=pd.concat([df_motif_and_sep_fragments, df_motif_list_of_lists_feature], axis=1)
     return df_new
+
+def make_list_of_selected_motifs(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_motifs_to_frag: pd.DataFrame,
+                 threshold_amount_analogs=2) -> list:
+    """
+    Generates a list containing motifs for which at least 2 with a probability > x (default=0.7) analogues were matched.
+
+    :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
+    column. The last column is a list of lists of the associated document, the probability and the overlap score.
+    :param df_doc_to_smiles: Pandas dataframe, with the associated document and their precursor m/z. Prediction
+    certainty, precursor_mz_analog, and smiles of analogs are given for prediction certainties above threshold.
+    :param df_motifs_to_frag: pandas dataframe with the motifs as index and each associated document in a separate column. The last
+    column is a list of lists of the associated document, the probability and the overlap score
+    :param threshold_amount_analogs: int, the amount of matched analogues a motif needs to have for it to be deemed
+    interesting (default=2).
+    :return: list of motifs found in more than x (default=5) spectra in the dataframe and that contain at least one
+    fragment/neutral loss with a prob > 0.05 and at least x (default=2) matched analogues with a probability > x
+    (default=0.7).
+    """
+    list_of_selected_motifs = []
+    for index, row in df_motifs_to_doc.iterrows():
+        amount_of_smiles = 0
+        # calculating the amount of smiles with a probability > 0.7 (default) associated with each motif
+        for cell in row:
+            if cell in df_doc_to_smiles.index.values.tolist():
+                if df_doc_to_smiles.at[cell, "smiles"] != "":
+                    amount_of_smiles += 1
+        # selection of Mass2Motifs based on the amount of smiles with a probability > 0.7 (default).
+        # At least 2 or more Smiles are needed for a mass2motif to be added to the list so that the validation can happen
+        if amount_of_smiles >= threshold_amount_analogs:
+            # if the mass2motif is in the list of indexes of df_motifs_to_frag then look for the column with fragments
+            if index in df_motifs_to_frag.index.values.tolist():
+                list_of_selected_motifs.append(index)
+    return list_of_selected_motifs
+
+def calculate_doc_ratio_for_feature(feature: list, motif: str, features_list_of_lists_with_counts: list, mgf_file: str,
+                                     df_motifs_to_doc: pd.DataFrame) -> list:
+    """
+    Retrieves the associated documents with a feature and calculates the document ratio for the feature.
+
+    :param feature: list, the feature name for which the document ratio should be calculated
+    :param motif: str, the motif name of the feature for which the document ratio should be calculated
+    :param features_list_of_lists_with_counts: list,  a list of lists with each list containing a feature associated
+    with the motif, probability of the feature,the ratio of associated document with the feature, a list of the
+    documents that contain the feature.
+    :param mgf_file: str, path to file downloaded from the GNPS website after a molecular networking job.
+    This file contains all the spectra from the inputted MzML format in a mgf style format.
+    :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
+    column. The last column is a list of lists of the associated document, the probability and the overlap score.
+    :return: a list of lists with each list containing a feature associated with the motif, probability of the feature,
+    the ratio of associated document with the feature, a list of the documents that contain the feature.
+    """
+    documents_that_contain_feature = []
+    num_of_ass_doc_with_feature = 0
+    total_documents_num = len(df_motifs_to_doc.at[motif, "Document+Probability+Overlap"])
+    spectra = list(load_from_mgf(mgf_file))
+    # for every document associated with a motif we will see if the spectrum of the document contains the feature
+    for document in df_motifs_to_doc.at[motif, "Document+Probability+Overlap"]:
+        # for every document associated with each feature for each motif you want to check if the document
+        # contains the feature
+        for spectrum in spectra:
+            # look through all the matchms spectra select the spectrum that has the current document number
+            if int(spectrum.get("scans")) == int(document[0]):
+                # if the feature we are looking at is a loss
+                if re.search(r'loss', feature[0]) != None:
+                    # first calculate all the losses in de spectrum based on the parent mass
+                    spectrum = add_losses(spectrum)
+                    for loss in range(len(spectrum.losses.mz)):
+                        # get the losses with 2 decimal points and round down the number
+                        rounded_loss = Decimal(spectrum.losses.mz[loss]).quantize(Decimal('.01'),
+                                                                                  rounding=ROUND_DOWN)
+                        # if a loss in the spectrum contains the loss in the feature then
+                        # the document contains the loss!
+                        if float(rounded_loss) == float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
+                            num_of_ass_doc_with_feature += 1
+                            documents_that_contain_feature.append(int(document[0]))
+                # if the feature we are looking at is a fragment
+                else:
+                    for fragment in range(len(spectrum.peaks.mz)):
+                        # get the fragment of the spectrum with 2 decimal points and round down the number
+                        rounded_fragment = Decimal(spectrum.peaks.mz[fragment]).quantize(Decimal('.01'),
+                                                                                         rounding=ROUND_DOWN)
+                        # if a fragment in the spectrum is the same as a fragment in the feature
+                        # then the document contains the fragment!
+                        if float(rounded_fragment) == float(re.search(r'\_(.*\..{2}).*', feature[0]).group(1)):
+                            num_of_ass_doc_with_feature += 1
+                            documents_that_contain_feature.append(int(document[0]))
+    # calculate the ratio of the associated document with the feature
+    ratio_of_ass_doc_with_feature = round((num_of_ass_doc_with_feature / total_documents_num), 2)
+    feature.append(ratio_of_ass_doc_with_feature)
+    feature.append(documents_that_contain_feature)
+    features_list_of_lists_with_counts.append(feature)
+    return features_list_of_lists_with_counts
+
+def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: list, df_motifs_to_frag: pd.DataFrame,
+                                     df_motifs_to_doc: pd.DataFrame, minimum_ratio=0) -> pd.DataFrame:
+    """
+    Calculates the ratio of the associated documents with each feature of each motif and selects features based on the ratio.
+
+    :param mgf_file: str, path to file downloaded from the GNPS website after a molecular networking job.
+    This file contains all the spectra from the inputted MzML format in a mgf style format.
+    :param list_of_selected_motifs: list, list of motifs found in more than x (default=5) spectra in the dataframe and
+    that contain at least one  fragment/neutral loss with a prob > 0.05 and at least x (default=2) matched analogues
+    with a probability > x (default=0.7).
+    :param df_motifs_to_frag: pandas dataframe with the motifs as index and each feature and probability in a list in
+    separate column.The last column contains a lists of list with each associated fragment and probability
+    :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
+    column. The last column is a list of lists of the associated document, the probability and the overlap score.
+    :param minimum_ratio: the minimum ratio of associated documents with feature/total associated documents with the
+    motif that the feature with the highest ratio has to have for the mass2motif to be deemed interesting.
+    :return: Pandas Dataframe with  the selected motifs as an index and in one column a list of lists containing the
+    feature, probability of the feature, the ratio of associated document with the feature, a list of the documents that
+    contain the feature for every selected feature.
+    """
+
+    #create list with 0 to fill the pandas column for the features for now
+    #convert 0 to string, because you get a Value error at the end of the function from pandas otherwise
+    empty_list = ["0"]*(len(list_of_selected_motifs))
+    # create pandas dataframe with the motifs that have 2 (default) smiles with prediction probability above 0.7 (default)
+    data={"motif": list_of_selected_motifs, "Fragment+Probability+Ratio+Doc": empty_list}
+    df_selected_motif_and_ratio = pd.DataFrame(data)
+    df_selected_motif_and_ratio.set_index("motif", inplace=True)
+    for motif in list_of_selected_motifs:
+        # list with all features that the motif contains
+        features_list_of_lists_with_counts=[]
+        # for every feature you want to calculate the ratio of associated documents with the feature with respect to the
+        # amount of documents associated with the whole motif
+        for feature in df_motifs_to_frag.at[motif, "Fragment+Probability"]:
+            calculate_doc_ratio_for_feature(feature, motif, features_list_of_lists_with_counts, mgf_file,
+                                            df_motifs_to_doc)
+        #select the features that will be in the massql search based on the ratio of the associated doc with the feature
+        #sort the list of lists of features from high to low ratio
+        features_list_of_lists_with_counts = sorted(features_list_of_lists_with_counts, key=lambda x: x[2],
+                                                    reverse=True)
+        #if the highest feature ratio of a motif is below the minimum_ratio (default: 0)
+        #the whole motif will be discarded from the dataframe
+        if features_list_of_lists_with_counts[0][2] < float(minimum_ratio):
+            df_selected_motif_and_ratio=df_selected_motif_and_ratio.drop(motif)
+        #if the highest feature ratio of a motif is above the minumum_ratio the motif will be in the dataframe with one
+        # or two features:
+        else:
+            if len(features_list_of_lists_with_counts)>1:
+                # the second highest feature will only be included in the massql search if the ratio of above 0.5
+                if features_list_of_lists_with_counts[1][2]>=0.5:
+                    df_selected_motif_and_ratio.at[
+                        motif, "Fragment+Probability+Ratio+Doc"] = features_list_of_lists_with_counts[:2]
+                else:
+                    df_selected_motif_and_ratio.at[
+                        motif, "Fragment+Probability+Ratio+Doc"] = features_list_of_lists_with_counts[:1]
+            else:
+                df_selected_motif_and_ratio.at[
+                    motif, "Fragment+Probability+Ratio+Doc"] = features_list_of_lists_with_counts[:1]
+
+    return df_selected_motif_and_ratio
+
+def make_MassQL_search(fragments: list) -> str:
+    """
+    Takes a list of lists containing fragments and probabilities and returns corresponding MassQL query
+
+    :param fragments: list of lists containing fragments and probabilities belonging to a Mass2Motif
+    :return: str, the corresponding MassQL query
+    """
+    query="QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive " #MS1DATA doesn't give any results, so MS2DATA it is
+    for fragment in fragments:
+        for string in fragment:
+            if type(string)==str:
+                if re.search(r'loss', string) != None:
+                    query+="AND MS2NL = {0}:TOLERANCEMZ={1} ".format(re.search(r'\_(.*)', string).group(1), 0.01)
+                else:
+                    query+="AND MS2PROD = {0}:TOLERANCEMZ={1} ".format(re.search(r'\_(.*)', string).group(1), 0.01)
+            else:
+                pass
+    return query
 
 def visualize_mol(smiles: str):
     """
@@ -130,108 +309,42 @@ def visualize_mol(smiles: str):
     img = MolToImage(mol, size=(200, 200), fitImage=True)
     return img
 
-def make_MassQL_search(fragments: list) -> str:
-    """
-    Takes a list of lists containing fragments and probabilities and returns corresponding MassQL query
-
-    :param fragments: list of lists containing fragments and probabilities belonging to a Mass2Motif
-    :return: str, the corresponding MassQL query
-    """
-    query="QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive " #MS1DATA doesn't give any results, so MS2DATA it is
-    fragments=sorted(fragments, key = lambda x: x[1], reverse=True)
-    print(fragments)
-    fragments_rel_intensity=list(map(list, fragments)) # to make a copy, but not a reference of fragments
-    for i in range(len(fragments_rel_intensity)):
-        if i==0:
-            fragments_rel_intensity[i][1]=1.0
-        else:
-            fragments_rel_intensity[i][1]=round(fragments[i][1]/fragments[0][1],3)
-    print(fragments_rel_intensity)
-    for fragment in fragments_rel_intensity:
-        for string in fragment:
-            if fragment[1]==1.0:
-                if type(string) == str:
-                    if re.search(r'loss', string) != None:
-                        query += "AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE ".format(re.search(r'\_(.*)', string).group(1), 0.01)
-                    else:
-                        query += "AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE ".format(re.search(r'\_(.*)', string).group(1),
-                                                                             0.01)
-                else:
-                    pass
-            else:
-                if type(string)==str:
-                    if re.search(r'loss', string) != None:
-                        query+="AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],99)
-                    else:
-                        query+="AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYMATCH=Y*{2}:INTENSITYMATCHPERCENT={3} ".format(re.search(r'\_(.*)', string).group(1), 0.01,fragment[1],99)
-                else:
-                    pass
-    print(query)
-    return query
-
-def make_file_with_massql_querries(df_motifs_to_frag: pd.DataFrame, list_of_selected_motifs: list) -> str:
-    """Outputs a tab delimited file with the selected motifs, their fragments and their MassQL querries
-
-    :param df_motifs_to_frag: pandas dataframe, motifs as index and each feature and probability in a list in
-    separate column. The last column contains a lists of list with each associated fragment and probability
-    :param list_of_selected_motifs: list, motifs found in more than 5 spectra in the dataframe and that contain at least
-    one fragments/neutral losses with a prob > 0.05 and at least 2 matched analogues with a probability > 0.7.
-    :return: path of tab delimited text file with the selected motif, its fragments+probabilities and the MassQL query
-    """
-    file_path = Path(r"motif_massql_querries.txt")
-    spectrum_file = open(file_path, "w")
-    for index, row in df_motifs_to_frag.iterrows():
-        if index in list_of_selected_motifs:
-            spectrum_file.write("{0}    {1}    {2}".format(index, df_motifs_to_frag.at[index, "Fragment+Probability"],
-                                                           make_MassQL_search(
-                                                               df_motifs_to_frag.at[index, "Fragment+Probability"])))
-            spectrum_file.write("\n")
-    spectrum_file.close()
-    return os.path.abspath(file_path)
-
-def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_motifs_to_frag: pd.DataFrame,
-                 threshold_amount_analogs=2) -> list:
-    """selects certain motifs and makes an overview PDF with the Mass2Motif, fragments, and the associated analogs
+def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame,
+                 df_selected_motif_and_ratio: pd.DataFrame) -> None:
+    """Makes an overview PDF with the Mass2Motif, fragments, and the associated analogs
 
     :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
     column. The last column is a list of lists of the associated document, the probability and the overlap score.
     :param df_doc_to_smiles: Pandas dataframe, with the associated document and their precursor m/z. Prediction
     certainty, precursor_mz_analog, and smiles of analogs are given for prediction certainties above threshold.
-    :param df_motifs_to_frag: pandas dataframe, with the motifs as index and each feature and probability in a list in
-    separate column. The last column contains a lists of list with each associated fragment and probability
-    :return: list of motifs found in more than x (default=5) spectra in the dataframe and that contain at least one
-    fragment/neutral loss with a prob > 0.05 and at least x (default=2) matched analogues with a probability > x
-    (default=0.7).
+    :param df_selected_motif_and_ratio: Pandas Dataframe with the selected motifs as an index and in one column a list
+    of lists containing the feature, probability of the feature, the ratio of associated document with the feature,
+    a list of the documents that contain the feature for every selected feature.
     """
-
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", size=10)
-    list_of_selected_motifs = []
+    list_of_selected_motifs=list(df_selected_motif_and_ratio.index.values)
     for index, row in df_motifs_to_doc.iterrows():
-        amount_of_smiles = 0
-        # calculating the amount of smiles with a probability > 0.7 associated with each motif
-        for cell in row:
-            if cell in df_doc_to_smiles.index.values.tolist():
-                if df_doc_to_smiles.at[cell, "smiles"] != "":
-                    amount_of_smiles += 1
         # selection of Mass2Motifs that will be printed in PDF based on the amount of smiles with a probability > 0.7.
         # At least 2 or more Smiles are needed.
-        if amount_of_smiles >= threshold_amount_analogs:
+        if index in list_of_selected_motifs:
             pdf.multi_cell(200, 5, txt="\n", align='C')
             pdf.set_font("helvetica", "B", size=10)
             # writing the mass_2_motif name, which is the index of df_motifs_to_doc, in the file
             pdf.multi_cell(200, 5, txt="{0}\n".format(index), align='C')
             pdf.set_font("helvetica", size=10)
             # if the mass2motif is in the list of indexes of df_motifs_to_frag then look for the column with fragments
-            # + probability of that mass2motif and sort that list of lists on the probability value
-            if index in df_motifs_to_frag.index.values.tolist():
-                list_of_selected_motifs.append(index)
-                pdf.multi_cell(200, 5, txt="{0}\n".format(
-                    sorted(df_motifs_to_frag.at[index, "Fragment+Probability"], key=lambda x: x[1], reverse=True)),
+            # + probability and count of that mass2motif
+            if index in df_selected_motif_and_ratio.index.values.tolist():
+                pdf.set_font("helvetica", "I", size=10)
+                pdf.multi_cell(200, 5,
+                               txt="[[feature, probability, ratio_of_spectra_with_feature, spectra number with feature], [feature, probability, ratio_of_spectra_with_feature, spectra number with feature], etc.] :\n",
+                               align='L')
+                pdf.multi_cell(200, 5, txt="{0}\n".format(df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"]),
                                align='L')
                 # https: // www.geeksforgeeks.org / python - sort - list - according - second - element - sublist /
-                MassQL_query = make_MassQL_search(df_motifs_to_frag.at[index, "Fragment+Probability"])
+                MassQL_query = make_MassQL_search(df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"])
                 pdf.multi_cell(200, 5, txt="MassQL query: {0}\n".format(MassQL_query),
                                align='L')
             else:
@@ -273,7 +386,24 @@ def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_
                                 df_doc_to_smiles.at[cell, "precursor_mz_analog"],
                                 df_doc_to_smiles.at[cell, "ms2query_model_prediction"]), align='L')
     pdf.output("output.pdf")
-    return list_of_selected_motifs
+
+def make_file_with_massql_querries(df_selected_motif_and_ratio: pd.DataFrame) -> str:
+    """Outputs a tab delimited file with the selected motifs, their fragments and their MassQL querries
+
+    :param df_selected_motif_and_ratio: Pandas Dataframe with the selected motifs as an index and in one column a list
+    of lists containing the feature, probability of the feature, the ratio of associated document with the feature,
+    a list of the documents that contain the feature for every selected feature.
+    :return: path of tab delimited text file with the selected motif, its fragments+probabilities and the MassQL query
+    """
+    file_path = Path(r"motif_massql_querries.txt")
+    spectrum_file = open(file_path, "w")
+    for index, row in df_selected_motif_and_ratio.iterrows():
+        spectrum_file.write("{0}    {1}    {2}".format(index, df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"],
+                                                           make_MassQL_search(
+                                                               df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"])))
+        spectrum_file.write("\n")
+    spectrum_file.close()
+    return os.path.abspath(file_path)
 
 def main() -> None:
     """Main function of this module"""
@@ -282,16 +412,24 @@ def main() -> None:
     path_to_file_with_MS2Query_csv= argv[1]
     path_file_with_MS2LDA_csv = argv[2]
     path_file_with_Motif_fragments_csv = argv[3]
+    path_to_gnps_output_mgf_file = argv[4]
     # step 1: rearrange MS2LDA file with mass2motifs and documents in dataframe
     df_motifs_to_doc=convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv, threshold_spectra_in_motif=5)
     #step 2: rearrange MS2Query file with documents and smiles of analogs in dataframe
     df_doc_to_smiles=convert_ms2query_to_df(path_to_file_with_MS2Query_csv, threshold_ms2query_pred=0.7)
     # step 3: rearrange MS2LDA fragment file with mass2motifs and fragments in dataframe
     df_motifs_to_frag=convert_fragments_in_motif_to_df(path_file_with_Motif_fragments_csv)
+    # step 4: make a list of the selected motifs with at least x (default 2) reliable MS2Query results per motif
+    list_of_selected_motifs = make_list_of_selected_motifs(df_motifs_to_doc, df_doc_to_smiles, df_motifs_to_frag,
+                                                           threshold_amount_analogs=2)
+    # step 5: calculate the amount of associated documents for each feature relative to the total amount of
+    # documents associated with the respective motif (so calculate the ratio)
+    df_selected_motif_and_ratio=select_motifs_based_on_doc_ratio(path_to_gnps_output_mgf_file, list_of_selected_motifs, df_motifs_to_frag,
+                                 df_motifs_to_doc)
     #step 4: make a PDF where you can see each Mass2Motif, its fragments, and the associated analog structures
-    list_of_selected_motifs=make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_motifs_to_frag, threshold_amount_analogs=2)
-    # step 5: make a table with the massql querries and their motifs and fragments
-    print(make_file_with_massql_querries(df_motifs_to_frag, list_of_selected_motifs))
+    make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_selected_motif_and_ratio)
+    # step 5: make a table with the selected motif and their corresponding massql querries
+    print(make_file_with_massql_querries(df_selected_motif_and_ratio))
 
 if __name__ == "__main__":
     main()
