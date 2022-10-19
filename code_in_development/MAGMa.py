@@ -52,6 +52,7 @@ def initialize_db_to_save_results(path_to_store_results_db: str,path_to_spectrum
     #if you try to annotate something in an existing database it will go wrong, so if the database exists remove it.
     if os.path.exists(file_path_out):
         os.remove(file_path_out)
+        print("file removed")
     cmd = f'magma init_db {file_path_out}'
     try:
         e = subprocess.check_call(cmd, shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
@@ -80,11 +81,7 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     :param ionisation: {1, -1}, indicates the ionisation mode, -1 is negative, 1 is positive (default: 1)
     :return: None
     """
-    cmd = 'magma read_ms_data -f {0} -i {1} -a {2} -p {3} -q {4} {5} {6}'.format(spectrum_file_type, ionisation,
-                                                                                 abs_intensity_thres, mz_precision_ppm,
-                                                                                 mz_precision_abs,
-                                                                                 path_to_spectrum_file,
-                                                                                 path_to_results_db_file)
+    cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} -a {abs_intensity_thres} -p {mz_precision_ppm} -q {mz_precision_abs} {path_to_spectrum_file} {path_to_results_db_file}'
     e = subprocess.check_call(cmd, shell=True,stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
     return None
 
@@ -139,10 +136,12 @@ def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spect
             cur.execute(sqlite_command)
             molid=cur.fetchall()
             molid=[i[0] for i in molid][0]
+            print(molid)
             return molid
         #if the identifier of the spectrum does not match an identifier in the results database, MAGMa did not find the
         # compound the spectrum actually belongs to, so return None, we cannot use the fragment annotations.
         else:
+            print("no molid matches with the HMDB identifier")
             return None
 
 def fetch_fragments_and_annotations_for_molid(molid: int,path_to_results_db_file: str) -> list:
@@ -160,6 +159,7 @@ def fetch_fragments_and_annotations_for_molid(molid: int,path_to_results_db_file
     cur = conn.cursor()
     cur.execute(sqlite_command)
     list_with_fragments_and_smiles=cur.fetchall()
+    print(f"list with frag and smiles {list_with_fragments_and_smiles}")
     return list_with_fragments_and_smiles
 
 def parse_line_with_motifs_and_querries(line: str) -> tuple:
@@ -190,14 +190,14 @@ def look_for_features(txt_file_with_motif_and_frag: str, current_motif: str) -> 
         line = line.replace('\n', '')
         motif, features_list, query = parse_line_with_motifs_and_querries(line)
         features_list_1 = ast.literal_eval(features_list)
-        print(motif)
-        print(current_motif)
         if motif == current_motif:
             list_of_features=[]
             for object in features_list_1:
                 # add the features of the current motif to the list of features 1 by 1.
                 list_of_features.append(object[0])
             return list_of_features
+            print(f"list features{list_of_features}")
+        assert False, "The file did not contain the specified motif"
 
 def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     """
@@ -219,7 +219,7 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
         else:
             precusor_mz, precusor_smiles = fragment
             list_with_losses.append(precusor_mz)
-    print(list_with_losses)
+    print(f"list with losses {list_with_losses}")
     return list_with_losses
 
 def get_smiles_of_loss(parent_string: str,fragment_string: str):
@@ -237,7 +237,8 @@ def get_smiles_of_loss(parent_string: str,fragment_string: str):
     if neutral_loss != None:
         neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
         smiles_neutral_loss = ""
-        # If the fragment smiles is in the middle of the precursor smiles, you get a list of neutral losses
+        # If the fragment smiles is in the middle of the precursor smiles, you get a list of neutral losses. Otherwise
+        # you just get 1 neutral loss in a list
         for loss in neutral_loss:
             part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
                                         Chem.MolToSmiles(loss)).group(2)
@@ -366,7 +367,7 @@ def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -
     # when you are at the end of the spectrum list you add the things to the dataframe
     output_file = open(file_path, "w")
     for index, row in updated_df_with_motifs.iterrows():
-        output_file.write(f"{index}    {updated_df_with_motifs.at[index, "features"]}    {updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]}".format(index, updated_df_with_motifs.at[index, "features"],
+        output_file.write("{0}    {1}    {2}".format(index, updated_df_with_motifs.at[index, "features"],
                                                                updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]))
         output_file.write("\n")
     output_file.close()
@@ -401,6 +402,7 @@ def main():
     molid=get_molid_of_matched_compound(path_to_results_db_file, identifier)
     after_annotate=time.perf_counter()
     print("get molids {0}".format(after_annotate-after_add_spectrum))
+    # It could be that MAGMa didn't find the correct compound then molid is going to be None
     if molid is not None:
         # step 5: get a list of features of the current motif
         list_of_features = look_for_features(path_to_txt_file_with_motif_and_frag, current_motif)
