@@ -51,8 +51,7 @@ def initialize_db_to_save_results(path_to_store_results_db: str,path_to_spectrum
     file_path_out = Path(fr"{path_to_store_results_db}/MAGMa_db_{identifier}.sqlite")
     #if you try to annotate something in an existing database it will go wrong, so if the database exists remove it.
     if os.path.exists(file_path_out):
-        os.remove(file_path_out)
-        print("file removed")
+        assert False, "The results db for this spectrum already exists, remove it"
     cmd = f'magma init_db {file_path_out}'
     try:
         e = subprocess.check_call(cmd, shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
@@ -195,9 +194,10 @@ def look_for_features(txt_file_with_motif_and_frag: str, current_motif: str) -> 
             for object in features_list_1:
                 # add the features of the current motif to the list of features 1 by 1.
                 list_of_features.append(object[0])
-            return list_of_features
             print(f"list features{list_of_features}")
-        assert False, "The file did not contain the specified motif"
+            return list_of_features
+    assert False, "The file with all motifs did not contain the specified motif"
+
 
 def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     """
