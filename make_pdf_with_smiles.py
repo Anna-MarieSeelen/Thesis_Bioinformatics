@@ -154,14 +154,16 @@ def make_list_of_selected_motifs(df_motifs_to_doc: pd.DataFrame, df_doc_to_smile
                 list_of_selected_motifs.append(index)
     return list_of_selected_motifs
 
-def calculate_doc_ratio_for_feature_1(feature, motif, features_list_of_lists_with_counts, mgf_file,
-                                     df_motifs_to_doc: pd.DataFrame) -> pd.DataFrame:
+def calculate_doc_ratio_for_feature(feature: list, motif: str, features_list_of_lists_with_counts: list, mgf_file: str,
+                                     df_motifs_to_doc: pd.DataFrame) -> list:
     """
-    Retrieves the associated documents with a feature and the document ratio for the feature.
+    Retrieves the associated documents with a feature and calculates the document ratio for the feature.
 
-    :param feature: the feature name for which the document ratio should be calculated
-    :param motif: the motif name of the feature for which the document ratio should be calculated
-    :param features_list_of_lists_with_counts:
+    :param feature: list, the feature name for which the document ratio should be calculated
+    :param motif: str, the motif name of the feature for which the document ratio should be calculated
+    :param features_list_of_lists_with_counts: list,  a list of lists with each list containing a feature associated
+    with the motif, probability of the feature,the ratio of associated document with the feature, a list of the
+    documents that contain the feature.
     :param mgf_file: str, path to file downloaded from the GNPS website after a molecular networking job.
     This file contains all the spectra from the inputted MzML format in a mgf style format.
     :param df_motifs_to_doc: Pandas dataframe, with the motifs as index and each associated document in a separate
@@ -211,7 +213,7 @@ def calculate_doc_ratio_for_feature_1(feature, motif, features_list_of_lists_wit
     features_list_of_lists_with_counts.append(feature)
     return features_list_of_lists_with_counts
 
-def calculate_doc_ratio_for_feature(mgf_file, list_of_selected_motifs: list, df_motifs_to_frag,
+def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: list, df_motifs_to_frag: pd.DataFrame,
                                      df_motifs_to_doc: pd.DataFrame, minimum_ratio=0) -> pd.DataFrame:
     """
     Calculates the ratio of the associated documents with each feature of each motif and selects features based on the ratio.
@@ -227,7 +229,7 @@ def calculate_doc_ratio_for_feature(mgf_file, list_of_selected_motifs: list, df_
     column. The last column is a list of lists of the associated document, the probability and the overlap score.
     :param minimum_ratio: the minimum ratio of associated documents with feature/total associated documents with the
     motif that the feature with the highest ratio has to have for the mass2motif to be deemed interesting.
-    :return: Pandas Dataframe with the selected motifs as an index and in one column a list of lists containing the
+    :return: Pandas Dataframe with  the selected motifs as an index and in one column a list of lists containing the
     feature, probability of the feature, the ratio of associated document with the feature, a list of the documents that
     contain the feature for every selected feature.
     """
@@ -245,7 +247,8 @@ def calculate_doc_ratio_for_feature(mgf_file, list_of_selected_motifs: list, df_
         # for every feature you want to calculate the ratio of associated documents with the feature with respect to the
         # amount of documents associated with the whole motif
         for feature in df_motifs_to_frag.at[motif, "Fragment+Probability"]:
-            calculate_doc_ratio_for_feature_1(feature, motif, features_list_of_lists_with_counts, mgf_file, df_motifs_to_doc)
+            calculate_doc_ratio_for_feature(feature, motif, features_list_of_lists_with_counts, mgf_file,
+                                            df_motifs_to_doc)
         #select the features that will be in the massql search based on the ratio of the associated doc with the feature
         #sort the list of lists of features from high to low ratio
         features_list_of_lists_with_counts = sorted(features_list_of_lists_with_counts, key=lambda x: x[2],
@@ -421,7 +424,7 @@ def main() -> None:
                                                            threshold_amount_analogs=2)
     # step 5: calculate the amount of associated documents for each feature relative to the total amount of
     # documents associated with the respective motif (so calculate the ratio)
-    df_selected_motif_and_ratio=calculate_doc_ratio_for_feature(path_to_gnps_output_mgf_file, list_of_selected_motifs, df_motifs_to_frag,
+    df_selected_motif_and_ratio=select_motifs_based_on_doc_ratio(path_to_gnps_output_mgf_file, list_of_selected_motifs, df_motifs_to_frag,
                                  df_motifs_to_doc)
     #step 4: make a PDF where you can see each Mass2Motif, its fragments, and the associated analog structures
     make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_selected_motif_and_ratio)
