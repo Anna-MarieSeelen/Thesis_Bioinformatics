@@ -1,3 +1,33 @@
+import sys
+#import ALL_GNPS_210409_positive_processed_annotated_CF_NPC_classes.txt
+import ntpath
+import pyarrow.feather as feather
+import os
+import pyteomics
+import re
+# import rdkit.Chem as Chem
+# from rdkit.Chem.Draw import MolToImage
+#from fpdf import FPDF
+import json
+from pandas import json_normalize
+import pandas as pd
+import ast
+import subprocess
+from pathlib import Path
+import re
+import os, glob
+import matchms
+from matchms import Scores, Spectrum
+import json
+from typing import List
+import numpy
+from matchms import Spectrum
+import csv
+from matchms.importing import load_from_mgf
+from matchms.exporting import save_as_mgf
+from typing import List
+
+
 def annotate_peaks(spectrum_file, smiles):
     """
     Annotates the MS2 peaks given a smiles and a fragmentation spectrum
@@ -76,6 +106,27 @@ def make_spectrum_file_for_id_matchms(gnps_pickled_lib, spectrum_id, path_to_sto
     #object=list(matchms.importing.load_from_pickle)
     #print(object)
     return None
+
+def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
+    """Takes a nested sorted list and outputs a tab delimited file
+
+    alignment_list: nested list with families and alignment lenghts
+    return: tab delimited text file with the contents of each sub list on a line
+    """
+    list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
+    file_path = Path(r"{0}/spectrum_file_{1}.txt".format(path_to_store_spectrum_files,spectrum_id))
+    # if os.path.exists(file_path):
+    #     print(os.path.abspath(file_path))
+    #     return os.path.abspath(file_path)
+    spectrum_file=open(file_path, "w")
+    for i in range(3):
+        spectrum_file.write("energy{0}\n".format(i))
+        for sub_list in list_of_lists:
+            #if sub_list[1]>600: #dit is ff een tussen oplossing om een file te krijgen waar je iets mee kan!
+            spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
+            spectrum_file.write("\n")
+    spectrum_file.close()
+    return os.path.abspath(file_path)
 
 def parse_input(filename):
     """Parses argonaut formatted file to extract accession number, organism name and DNA_seq and stores those in dict.
@@ -203,3 +254,11 @@ def make_json_file(pickle_file, path_to_store_json_file):
         spectrum_list.append(spectrum)
     save_as_json(spectrum_list,path_to_store_json_file)
     return None
+
+    with open(mgf_file, 'r') as spectra_file:
+        spectra_from_file = list(load_from_mgf(spectra_file))
+        for spectrum in spectra_from_file:
+            #print(spectrum.get("spectrumid"))
+            if spectrum.get("spectrumid") == spectrum_id:
+                # in this function I get an error but don't know why
+                save_as_mgf(spectrum, file_path)
