@@ -192,6 +192,14 @@ def parse_input(filename):
             # gb_dict[key][last_key]+=line
     return None
 
+def mgf_to_spectra(mgf_file):
+    with open(mgf_file, 'r') as spectra_file:
+        spectra_from_file = list(load_from_mgf(spectra_file))
+        for spectrum in spectra_from_file:
+            if spectrum.get("spectrum_id") == spectrum_id:
+
+                save_as_mgf(spectrum, filename)
+
 def save_json_as_csv(json_file):
     with open(json_file) as json_file:
         jsondata = json.load(json_file)
@@ -262,3 +270,25 @@ def make_json_file(pickle_file, path_to_store_json_file):
             if spectrum.get("spectrumid") == spectrum_id:
                 # in this function I get an error but don't know why
                 save_as_mgf(spectrum, file_path)
+    return None
+
+def new_dataframe(df_massql_matches,df_json):
+    """
+    Makes a new dataframe based on the df_json and df_massql_matches with the smiles and the peaks for each match.
+
+    :param df_massql_matches: returns a Pandas dataframe with the spectrum ids of the spectra as the index which contain
+    the characteristics of the query.
+    :param df_json: pandas Dataframe with one row for each spectrum and the information belonging to the spectrum in
+    separate columns.
+    :return:
+    """
+
+    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
+    # We don't want a dataframe with the smiles anymore, because we are not using cfm-annotate. We just need the identifiers.
+    # for some matches there are no smiles so remove those from the dataframe
+    #df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
+    #df.drop(df.index[df['Smiles'] == ' '], inplace=True)
+    # for index, row in df.iterrows():
+    #     print(df.at[index,"Smiles"])
+    print(df)
+    return df

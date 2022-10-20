@@ -39,7 +39,6 @@ def parse_input(filename):
     record = ""
     for line in lines:
         if line.startswith("BEGIN IONS"):
-            #line = line.replace("ACCESSION   ", "")
             record_bool=True
         if record_bool:
             record+=line
@@ -71,10 +70,12 @@ def parse_line_with_motifs_and_querries(line: str) -> tuple:
 
 def try_massql(query, json_file):
     """
+    Uses MassQL to retrieve the identifiers of the spectra in the json file that contain the characteristics of the query
 
-    :param query:
-    :param json_file:
-    :return:
+    :param query: str, MassQL query made based on a mass2motif
+    :param json_file: str, the path to a file with MS/MS spectra retrieved from GNPS in json format
+    :return: returns a Pandas dataframe with the spectrum ids of the spectra as the index which contain the
+    characteristics of the query.
     """
     print(query)
     # this msql_engine only takes json files
@@ -86,9 +87,11 @@ def try_massql(query, json_file):
 
 def read_json(json_file):
     """
+    Puts a json file with MS/MS spectra retrieved in a Pandas dataframe.
 
-    :param json_file:
-    :return:
+    :param json_file: str, the path to a file with MS/MS spectra retrieved from GNPS in json format
+    :return: pandas Dataframe with one row for each spectrum and the information belonging to the spectrum in separate
+    columns.
     """
     with open(json_file, 'r') as f:
         dict=json.load(f)
@@ -98,30 +101,18 @@ def read_json(json_file):
     print(df)
     return df
 
-def new_dataframe(df_massql_matches,df_json):
-    """
-    Makes a dataframe with scan precmz smiles and
-    :return:
-    """
-    # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
-    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
-    # for pickle file smiles instead of Smiles
-    # for some matches there are no smiles so remove those from the dataframe
-    df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
-    df.drop(df.index[df['Smiles'] == ' '], inplace=True)
-    # for index, row in df.iterrows():
-    #     print(df.at[index,"Smiles"])
-    print(df)
-    return df
-
 def make_spectrum_file_for_id2(motif, df_json, spectrum_id, path_to_store_spectrum_files, dict_with_mgf_spectra):
     """Takes a nested sorted list and outputs a tab delimited file
 
     alignment_list: nested list with families and alignment lenghts
     return: tab delimited text file with the contents of each sub list on a line
     """
-    #list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
+    # look for the corresponding HMDB identifier using the spectrum_id in the dataframe of the json file,
+    # because MAGMa works with that identifier.
+    #TODO: delete the json read function and don't use the dataframe anymore, just read this from the dict string, it will be easy.
+    #spectrum=dict_with_mgf_spectra[spectrum_id]
     HMDB_id = re.search(r'(HMDB:)(HMDB\d*)(-\d*)(.*)', df_json.loc[spectrum_id, "Compound_Name"]).group(2)
+    # HMDB_id = re.search(r'(.*)(HMDB:)(HMDB\d*)(-\d*)(.*)', spectrum).group(3)
     # in the current (10-2022) structures database of HMDB a longer identifier is used, so the older identifier from GNPS
     # needs to be adjusted
     adj_HMDB_id = HMDB_id[:4] + '00' + HMDB_id[4:]
@@ -133,14 +124,6 @@ def make_spectrum_file_for_id2(motif, df_json, spectrum_id, path_to_store_spectr
         spectrum_file.write(dict_with_mgf_spectra[spectrum_id])
         spectrum_file.close()
         return os.path.abspath(file_path)
-
-def mgf_to_spectra(mgf_file):
-    with open(mgf_file, 'r') as spectra_file:
-        spectra_from_file = list(load_from_mgf(spectra_file))
-        for spectrum in spectra_from_file:
-            if spectrum.get("spectrum_id") == spectrum_id:
-
-                save_as_mgf(spectrum, filename)
 
 def write_path_to_file(path_to_files_with_motifs, path_to_spectrum_file):
     # the path to the spectrum files that are associated with all motifs according to MassQL will be stored in this document
@@ -183,17 +166,13 @@ def main():
         #query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 85.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 68.0275:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.186:INTENSITYMATCHPERCENT=99 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.156:INTENSITYMATCHPERCENT=99")
         #query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 176.0350:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 126.0550:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.089:INTENSITYMATCHPERCENT=99 AND MS2PROD = 127.0375:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.082:INTENSITYMATCHPERCENT=99")
         #query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 46.0050:TOLERANCEMZ=0.005") #motif gnps_motif_38.m2m
-        # step 1: parse json file
-        df_json=read_json(path_to_json_file)
         # step 2: search query in json file with MassQL
         df_massql_matches=try_massql(query, path_to_json_file)
+        # step 1: to make it easy to get the smiles belonging to the matches and the HMDB identifiers by putting the
+        # json file in a Pandas Dataframe
+        df_json=read_json(path_to_json_file)
         # step 3: get the smiles for every match of MassQL
         df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
-
-        # step 4: print a spectrum file for a match
-        #for identifier in list(index_smiles)
-        #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
-        #make_spectrum_file_for_id(list_of_lists, identifier)
 
         for identifier, row in df_matches_and_smiles.iterrows():
             #make a spectrum file
@@ -202,15 +181,6 @@ def main():
             # add to list of spectrum file
             print(df_matches_and_smiles.loc[identifier, "Smiles"])
             write_path_to_file(path_to_files_with_motifs, path_to_spectrum_file)
-            #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
-            # make a huge list for each of the motifs containing the possible smiles per fragments
-            #annotate_peaks(spectrum_file_name, smiles)
-            #Make PDF
-            # pdf = FPDF()
-            # pdf.add_page()
-            # pdf.set_font("helvetica", size=10)
-            # pdf.image(visualize_mol("N[C@@H](CCCCNC(N)=O)C(O)=O"))
-            # pdf.output("output.pdf")
 
 
 if __name__ == "__main__":
