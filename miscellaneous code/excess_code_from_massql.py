@@ -292,3 +292,23 @@ def new_dataframe(df_massql_matches,df_json):
     #     print(df.at[index,"Smiles"])
     print(df)
     return df
+
+def read_json(json_file):
+    """
+    Puts a json file with MS/MS spectra retrieved in a Pandas dataframe.
+
+    :param json_file: str, the path to a file with MS/MS spectra retrieved from GNPS in json format
+    :return: pandas Dataframe with one row for each spectrum and the information belonging to the spectrum in separate
+    columns.
+    """
+    with open(json_file, 'r') as f:
+        dict=json.load(f)
+    df=json_normalize(dict)
+    #print(df.columns)
+    df.set_index("spectrum_id",inplace=True, drop=True)
+    print(df)
+    return df
+
+# query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 85.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 68.0275:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.186:INTENSITYMATCHPERCENT=99 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.156:INTENSITYMATCHPERCENT=99")
+# query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 176.0350:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 126.0550:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.089:INTENSITYMATCHPERCENT=99 AND MS2PROD = 127.0375:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.082:INTENSITYMATCHPERCENT=99")
+# query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 46.0050:TOLERANCEMZ=0.005") #motif gnps_motif_38.m2m
