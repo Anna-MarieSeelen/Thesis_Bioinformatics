@@ -31,6 +31,7 @@ from rdkit.Chem.Descriptors import MolWt
 import time
 import shutil
 import pandas as pd
+import numpy as np
 
 #functions
 
@@ -243,13 +244,19 @@ def get_smiles_of_loss(parent_string: str,fragment_string: str):
     parent = Chem.MolFromSmiles(parent_string)
     print(Chem.MolToSmiles(parent))
     fragment = Chem.MolFromSmiles(fragment_string)
-    print(Chem.MolToSmiles(fragment))
-    neutral_loss = Chem.ReplaceCore(parent, fragment)
+    #print(Chem.MolToSmiles(fragment))
+    # sometimes a parent or fragment string given by MAGMa cannot be converted into a real molecule and then an error
+    # is thrown in this function, an ArgumentError... but how do I handle an error of this imported function?
+    try:
+        neutral_loss = Chem.ReplaceCore(parent, fragment)
+    except:
+        return None
     print(Chem.MolToSmiles(neutral_loss))
     # if the fragment smiles is not present in the parent smiles then neutral loss could be None
     if neutral_loss != None:
         try:
             neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
+            print(neutral_loss)
         # the results from replace core could be a molecule that is not a real molecule upon which Chem.GetMolFrag will
         # give an error, so that function should be tried.
         except:
@@ -261,15 +268,18 @@ def get_smiles_of_loss(parent_string: str,fragment_string: str):
         for loss in neutral_loss:
             # if the neutral loss is a list of more substructures than the neutral loss is not 1 substructure, but a
             # splintered substructure and its hard to put back to a molecule that makes sense, so then its not returned.
-            if len(neutral_loss)>1:
-                print("splintered substructure")
-                return None
             print(Chem.MolToSmiles(loss))
             part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
                                         Chem.MolToSmiles(loss)).group(2)
             print(part_of_smiles_loss)
             # the neutral loss is added into one string
             smiles_neutral_loss+=part_of_smiles_loss
+            if len(neutral_loss)>1:
+                print("splintered substructure")
+                try:
+                    MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
+                except:
+                    return None
             print(smiles_neutral_loss)
         return smiles_neutral_loss
 
@@ -296,7 +306,9 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
             # and for every loss in this list of losses, try to find a match to the loss of the feature
             for index,rounded_loss in enumerate(list_of_losses):
                 # match the feature to the fragment/neutral loss on 2 decimals, rounded up or down.
-                if float(rounded_loss) == float(re.search(r'\_(.*\..{2}).*', feature).group(1)):
+                lower_bound=float(re.search(r'\_(.*\..{2}).*', feature).group(1))-0.01
+                upper_bound=round(float(re.search(r'\_(.*)', feature).group(1)), 2)+0.01
+                if float(rounded_loss) in np.arange(lower_bound, upper_bound+0.01, 0.01):
                     # then retrieve the corresponding fragment string and the parent string belonging to the loss
                     precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
@@ -305,34 +317,31 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
                         mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
+                        print(mol_weight_from_smiles)
                         rounded_mol_weight_from_smiles=Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
                                                                           rounding=ROUND_DOWN)
+                        print(rounded_mol_weight_from_smiles)
                         if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
                             count = 1
                             list_with_annotated_features.append([feature,smiles_neutral_loss, count])
-                elif float(rounded_loss) == round(float(re.search(r'\_(.*)', feature).group(1)), 2):
-                    # then retrieve the corresponding fragment string and the parent string belonging to the loss
-                    precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
-                    fragment_mz, fragment_smiles = list_with_fragments_and_smiles[index]
-                    smiles_neutral_loss = get_smiles_of_loss(precusor_smiles, fragment_smiles)
-                    if smiles_neutral_loss != None:
-                        # check if the smiles has the same molecular mass as the loss reported of the feature
-                        print(smiles_neutral_loss)
-                        mol_weight_from_smiles = MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
-                        rounded_mol_weight_from_smiles = Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
-                                                                                                  rounding=ROUND_DOWN)
-                        if rounded_mol_weight_from_smiles == float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
+                        else:
                             count = 1
-                            list_with_annotated_features.append([feature, smiles_neutral_loss, count])
+                            list_with_annotated_features.append([feature,smiles_neutral_loss, count, mol_weight_from_smiles])
         # if feature is not a loss
         else:
-            for fragment in enumerate(list_with_fragments_and_smiles):
+            for fragment in list_with_fragments_and_smiles:
+                print(fragment)
                 fragment_mz, fragment_smiles = fragment
                 rounded_fragment = Decimal(fragment_mz).quantize(Decimal('.01'),
                                                                           rounding=ROUND_DOWN)
-                if float(rounded_fragment)==float(re.search(r'\_(.*\..{2}).*', feature).group(1)):
+                lower_bound = float(re.search(r'\_(.*\..{2}).*', feature).group(1)) - 0.01
+                upper_bound = round(float(re.search(r'\_(.*)', feature).group(1)), 2) + 0.01
+                print(np.arange(lower_bound, upper_bound+0.01, 0.01))
+                print(float(rounded_fragment))
+                if float(rounded_fragment) in np.arange(lower_bound, upper_bound+0.01, 0.01):
                     count=1
                     list_with_annotated_features.append([feature,fragment_smiles, count])
+    print(list_with_annotated_features)
     return list_with_annotated_features
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
