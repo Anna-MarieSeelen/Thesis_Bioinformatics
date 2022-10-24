@@ -33,7 +33,26 @@ import shutil
 import pandas as pd
 
 #functions
-def initialize_db_to_save_results(path_to_store_results_db: str,path_to_spectrum_file: str) -> tuple:
+
+def construct_path_to_db(path_to_spectrum_file: str, path_to_store_results_db: str) -> tuple:
+    # generate a good database name with the spectrum id and motif in it.
+    print(path_to_spectrum_file)
+    path, filename = os.path.split(path_to_spectrum_file)
+    print(filename)
+    identifier = re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(3)
+    motif = re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(2)
+    # realpath of the database
+    file_path_out = Path(fr"{path_to_store_results_db}/MAGMa_db_{identifier}.sqlite")
+    # if you try to annotate something in an existing database it will go wrong, so if the database exists do not
+    # annotate it again.
+    if os.path.exists(file_path_out):
+        #assert False, "The results db for this spectrum already exists, remove it"
+        return "exists", file_path_out, identifier, motif
+    else:
+        return "new", file_path_out, identifier, motif
+
+
+def initialize_db_to_save_results(path_to_results_db) -> None:
     """
     Initializes a sqlite database using the MAGMa CL init_db function to store annotation results from MAGMa for spectrum
 
@@ -43,25 +62,15 @@ def initialize_db_to_save_results(path_to_store_results_db: str,path_to_spectrum
     contains a motif which was determined with MassQL.py script.
     :return: str containing the realpath to the results database from MAGMa
     """
-    #generate a good database name with the spectrum id and motif in it.
-    print(path_to_spectrum_file)
-    path, filename = os.path.split(path_to_spectrum_file)
-    print(filename)
-    identifier=re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(3)
-    motif=re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(2)
-    #realpath of the database
-    file_path_out = Path(fr"{path_to_store_results_db}/MAGMa_db_{identifier}.sqlite")
-    #if you try to annotate something in an existing database it will go wrong, so if the database exists remove it.
-    if os.path.exists(file_path_out):
-        assert False, "The results db for this spectrum already exists, remove it"
-    cmd = f'magma init_db {file_path_out}'
+
+    cmd = f'magma init_db {path_to_results_db}'
     try:
         e = subprocess.check_call(cmd, shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
     # For some reason the text that MAGMa returns on the command line is seen as an error so include this line to keep
     # script from stopping.
     except subprocess.CalledProcessError:
         pass
-    return file_path_out, identifier, motif
+    return None
 
 def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: str,
                                              abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01,
@@ -418,26 +427,26 @@ def main():
         line = line.strip()
         path_to_spectrum_file = line.replace('\n', '')
         #step 2: parse name of spectrum file and initialize database to save results from MAGMa
-        path_to_results_db_file, identifier, current_motif = initialize_db_to_save_results(path_to_store_results_db,
-                                                                                             path_to_spectrum_file)
-        print(path_to_store_results_db)
-        after_init=time.perf_counter()
-        print("init database {0}".format(after_init-before_script))
-        # step 3: add spectrum to be annotated into the results database
-        add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000,
-                                             mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
-                                             ionisation=1)
-        after_add_spectrum=time.perf_counter()
-        print("add spectrum {0}".format(after_add_spectrum-after_init))
-        #step 4: annotate spectrum with MAGMa and store output in results database
-        annotate_spectrum_with_MAGMa(path_to_structures_database, path_to_results_db_file, max_num_break_bonds=10, structure_db="hmdb",
-                          ncpus=1)
-        after_annotate=time.perf_counter()
-        print("annotate spectrum {0}".format(after_annotate-after_add_spectrum))
+        new_or_exists, path_to_results_db_file, identifier, current_motif=construct_path_to_db(path_to_spectrum_file, path_to_store_results_db)
+        if new_or_exists=="new":
+            initialize_db_to_save_results(path_to_results_db_file)
+            print(path_to_results_db_file)
+            after_init=time.perf_counter()
+            print("init database {0}".format(after_init-before_script))
+            # step 3: add spectrum to be annotated into the results database
+            add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file, abs_intensity_thres=1000,
+                                                 mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
+                                                 ionisation=1)
+            after_add_spectrum=time.perf_counter()
+            print("add spectrum {0}".format(after_add_spectrum-after_init))
+            #step 4: annotate spectrum with MAGMa and store output in results database
+            annotate_spectrum_with_MAGMa(path_to_structures_database, path_to_results_db_file, max_num_break_bonds=10, structure_db="hmdb",
+                              ncpus=1)
+            after_annotate=time.perf_counter()
+            print("annotate spectrum {0}".format(after_annotate-after_add_spectrum))
         # step 5: get the molid that has a HMDB identifier that corresponds to the HMDB identifier of the spectrum
         molid=get_molid_of_matched_compound(path_to_results_db_file, identifier)
         after_annotate=time.perf_counter()
-        print("get molids {0}".format(after_annotate-after_add_spectrum))
         # It could be that MAGMa didn't find the correct compound then molid is going to be None
         if molid is not None:
             # step 6: get a list of features of the current motif
