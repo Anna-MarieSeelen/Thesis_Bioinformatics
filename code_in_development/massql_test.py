@@ -112,9 +112,10 @@ def search_motif_with_massql(massql_query: str, path_to_HMDB_json_file: str) -> 
     # function.
     with Suppress(suppress_stderr=True, suppress_stdout=True):
         df_massql_res=msql_engine.process_query(massql_query,path_to_HMDB_json_file)
-    df_massql_res.rename(columns={'scan': 'spectrum_id'}, inplace=True)
-    df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
-    return df_massql_res
+    if not df_massql_res.empty:
+        df_massql_res.rename(columns={'scan': 'spectrum_id'}, inplace=True)
+        df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
+        return df_massql_res
 
 def make_mgf_txt_file_for_spectrum(motif: str, spectrum_id: str, path_to_store_spectrum_files: str,
                                        dict_with_mgf_spectra: dict) -> str:
@@ -140,7 +141,8 @@ def make_mgf_txt_file_for_spectrum(motif: str, spectrum_id: str, path_to_store_s
     # create the name for the spectrum file with the HMDB identifier and the motif that the spectrum contains according
     # to MassQL
     path_to_spectrum_file = Path(fr"{path_to_store_spectrum_files}/spectrum_{motif}_{adj_HMDB_id}.txt")
-    # write the mgf spectrum saved in the dict only to a text file if the text file doesn't exist already
+    # write the mgf spectrum saved in the dict only to a text file if the text file doesn't exist already, if the text
+    # file does exist it is assumed to be the right text file in the right formatting
     if os.path.exists(path_to_spectrum_file):
          return os.path.abspath(path_to_spectrum_file)
     else:
@@ -201,14 +203,16 @@ def main():
         motif, features, massql_query=parse_line_with_motif_and_query(line)
         # step 4: search for spectra with the motif in json file with MassQL
         df_massql_matches=search_motif_with_massql(massql_query, path_to_HMDB_json_file)
-        for identifier, row in df_massql_matches.iterrows():
-            #identifier="CCMSLIB00000426038" #result from HMDB with Motif_38
-            # step 5: make a spectrum file in mgf format for every identified match
-            path_to_spectrum_file = make_mgf_txt_file_for_spectrum(motif, identifier, path_to_store_spectrum_files,
-                                                               dict_with_mgf_spectra)
-            # step 6: add the new spectrum file to a document with a list of spectrum files to be used by MAGMa for
-            # annotation.
-            write_path_to_file(path_to_file_with_motifs, path_to_spectrum_file)
+        # the dataframe can be empty for some motifs
+        if df_massql_matches is not None:
+            for identifier, row in df_massql_matches.iterrows():
+                #identifier="CCMSLIB00000426038" #result from HMDB with Motif_38
+                # step 5: make a spectrum file in mgf format for every identified match
+                path_to_spectrum_file = make_mgf_txt_file_for_spectrum(motif, identifier, path_to_store_spectrum_files,
+                                                                   dict_with_mgf_spectra)
+                # step 6: add the new spectrum file to a document with a list of spectrum files to be used by MAGMa for
+                # annotation.
+                write_path_to_file(path_to_file_with_motifs, path_to_spectrum_file)
 
 if __name__ == "__main__":
     main()
