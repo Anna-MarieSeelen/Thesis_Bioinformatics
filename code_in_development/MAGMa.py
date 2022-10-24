@@ -105,7 +105,7 @@ def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_resul
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     return None
 
-def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spectrum: str) -> str:
+def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spectrum: str) -> int:
     """
     Retrieves the molid for the compound with the same HMDB identifier as the HMDB identifier of the spectrum file.
 
@@ -239,13 +239,19 @@ def get_smiles_of_loss(parent_string: str,fragment_string: str):
     print(Chem.MolToSmiles(neutral_loss))
     # if the fragment smiles is not present in the parent smiles then neutral loss could be None
     if neutral_loss != None:
-        neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
+        try:
+            neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
+        # the results from replace core could be a molecule that is not a real molecule upon which Chem.GetMolFrag will
+        # give an error, so that function should be tried.
+        except:
+            print("neutral loss probably not a good molecule, so not added to results")
+            return None
         print("this is neutral loss")
         print(neutral_loss)
         smiles_neutral_loss = ""
-        # If the fragment smiles is in the middle of the precursor smiles, you get a list of neutral losses. Otherwise
-        # you just get 1 neutral loss in a list
         for loss in neutral_loss:
+            # if the neutral loss is a list of more substructures than the neutral loss is not 1 substructure, but a
+            # splintered substructure and its hard to put back to a molecule that makes sense, so then its not returned.
             if len(neutral_loss)>1:
                 print("splintered substructure")
                 return None
@@ -258,7 +264,7 @@ def get_smiles_of_loss(parent_string: str,fragment_string: str):
             print(smiles_neutral_loss)
         return smiles_neutral_loss
 
-def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list):
+def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list) -> list:
     """
     Makes a list of lists of features of the mass2motif that are annotated by MAGMa
 
@@ -320,7 +326,7 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                     list_with_annotated_features.append([feature,fragment_smiles, count])
     return list_with_annotated_features
 
-def make_output_file(path_to_txt_file_with_motif_and_frag: str):
+def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     """
     Makes a copy of a tab-separated file, puts the file in a dataframe and removes the last column.
 
