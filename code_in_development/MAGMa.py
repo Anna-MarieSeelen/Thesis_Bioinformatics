@@ -52,6 +52,37 @@ def construct_path_to_db(path_to_spectrum_file: str, path_to_store_results_db: s
     else:
         return "new", file_path_out, identifier, motif
 
+def parse_input(mgf_file: str) -> dict:
+    """Parses mgf into strings, where each string is a spectrum and stores those in dict with the spectrum_id as key.
+
+    :param mgf_file: str, name of mgf formatted file containing MS/MS spectra from GNPS
+    :return: dictionary with {spectrum_id:record} where each record is a string containing the mgf-style accession of one
+    compound
+    """
+
+    lines_mgf_file=open(mgf_file)
+    spectrum_record_bool = False
+    mgf_spectrum_records=[]
+    mgf_spectrum_record = ""
+    for line in lines_mgf_file:
+        if line.startswith("BEGIN IONS"):
+            spectrum_record_bool=True
+        if spectrum_record_bool:
+            mgf_spectrum_record+=line
+        if line.startswith("END IONS"):
+            mgf_spectrum_records.append(mgf_spectrum_record)
+            spectrum_record_bool = False
+            mgf_spectrum_record=""
+
+    dict_with_mgf_spectra={}
+    for mgf_spectrum_record in mgf_spectrum_records:
+        mgf_spectrum_record=mgf_spectrum_record.strip()
+        # look for the spectrumid in the string and use it as a key for the dict
+        key = re.search(r'SPECTRUMID=(.*)', mgf_spectrum_record).group(1)
+        if key is not None:
+            dict_with_mgf_spectra[key] = mgf_spectrum_record
+    return dict_with_mgf_spectra
+
 
 def initialize_db_to_save_results(path_to_results_db) -> None:
     """
@@ -98,7 +129,7 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
 
 #TODO: add_structures and remove structure database etc.
 
-magma add_structures -t smiles 'C(C(C(=O)O)N)C(O)=O' results.sqlite
+#magma add_structures -t smiles 'C(C(C(=O)O)N)C(O)=O' results.sqlite
 
 def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_results_db_file: str,
                                      max_num_break_bonds=10, structure_db="hmdb", ncpus=1) -> None:
@@ -180,16 +211,17 @@ def fetch_fragments_and_annotations_for_molid(molid: int,path_to_results_db_file
     print(f"list with frag and smiles {list_with_fragments_and_smiles}")
     return list_with_fragments_and_smiles
 
-def parse_line_with_motifs_and_querries(line: str) -> tuple:
+def parse_line_with_motif_and_query(line: str) -> tuple:
     """
     Takes a line in a tab separated file and separates it into motif, feature list and massql query
     :param line: str, line in a tab separated file containing the motif, list of features and the massql query
-    :return: returns the motif, feature_list and query in a tuple
+    :return: returns the motif, feature_list and the massql query in a tuple
     """
-    motif=re.search(r'(.*)    (.*)    (.*)', line).group(1)
-    feature_list=re.search(r'(.*)    (.*)    (.*)', line).group(2)
-    query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
-    return motif,feature_list,query
+    splitted_line = line.split("\t")
+    assert len(
+        splitted_line) == 3, "Expected a file with lines with tabs separating motif, feature_list and massql query"
+    motif, features, massql_query = splitted_line
+    return motif,features,massql_query
 
 def look_for_features(txt_file_with_motif_and_frag: str, current_motif: str) -> list:
     """
@@ -383,7 +415,7 @@ def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     if os.path.exists(file_path):
         assert False, f"The output file: {file_path} exists, remove it"
     shutil.copyfile(path_to_txt_file_with_motif_and_frag, file_path)
-    df_with_motifs=pd.read_csv(file_path, sep="    ", engine='python', header=None)
+    df_with_motifs=pd.read_csv(file_path, sep="\t", engine='python', header=None)
     df_with_motifs.columns=["motif_name", "features", "massql_query"]
     df_with_motifs=df_with_motifs.set_index(["motif_name"])
     del df_with_motifs["massql_query"]
@@ -457,6 +489,10 @@ def main():
     path_to_spectrum_files = open(path_to_spectrum_files)
     # step 1: make a dataframe to put the annotations in for the features (so the output)
     file_path, df_with_motifs = make_output_file(path_to_txt_file_with_motif_and_frag)
+
+    for file in os.listdir(path_to_spectrum_files)
+        if re.search(r'mgf_spectra_for_(.+)_from_massql.txt', file) != None:
+
     for line in path_to_spectrum_files:
         line = line.strip()
         path_to_spectrum_file = line.replace('\n', '')
