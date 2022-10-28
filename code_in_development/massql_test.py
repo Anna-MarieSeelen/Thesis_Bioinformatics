@@ -151,10 +151,12 @@ def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_
                 else:
                     mgf_spectra_file = open(path_to_spectra_file_for_motif, "w")
                     mgf_spectra_file.write(spectrum_record_mgf)
+                    mgf_spectra_file.write("\n")
                     mgf_spectra_file.close()
             # else append to the file with mgf spectra if the identifier is not the first identifier
             else:
                 mgf_spectra_file = open(path_to_spectra_file_for_motif, "a")
+                mgf_spectra_file.write("\n")
                 mgf_spectra_file.write(spectrum_record_mgf)
                 mgf_spectra_file.write("\n")
                 mgf_spectra_file.close()
