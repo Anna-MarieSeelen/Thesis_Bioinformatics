@@ -4,14 +4,14 @@ Author: Anna-Marie Seelen
 Studentnumber:1008970
 Description: Takes a file with MassQL queries, searches for spectra in json file that contain the queries and writes
 these spectra to individual files in mgf-style.
-Usage: python3 *massql_search_spectra_with_motif.py *path_to_file_with_motifs *path_to_HMDB_json_file* *path_to_store_spectrum_files*
-*path_to_HMDB_mgf_file*
+Usage: python3 *massql_search_spectra_with_motif.py *path_to_file_with_motifs *path_to_json_file* *path_to_store_spectrum_files*
+*path_to_mgf_file*
     path_to_file_with_motifs: a tab separated file with a selected motif, feature list and massql query on each line
     (output from make_pdf_with_smiles.py)
-    path_to_HMDB_json_file: the path to the file with MS/MS spectra retrieved from GNPS in json format
+    path_to_json_file: the path to the file with MS/MS spectra retrieved from GNPS in json format
     path_to_store_spectrum_files: folder where all the mgf-formatted text files with spectra will be stored that contain
     a selected motif (determined by MassQL)
-    path_to_HMDB_mgf_file: the path to the file with mgf-formatted MS/MS spectra from GNPS
+    path_to_mgf_file: the path to the file with mgf-formatted MS/MS spectra from GNPS
 """
 
 # import statements
@@ -165,7 +165,7 @@ def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_
 def main():
     """Main function of this module"""
     path_to_file_with_motifs = argv[1]
-    path_to_HMDB_json_file = argv[2]
+    path_to_json_file = argv[2]
     path_to_store_spectrum_files = argv[3]
     path_to_mgf_file = argv[4]
     # step 1: parse the mgf file with spectra and put into dictionary with spectrum id's as keys.
@@ -179,7 +179,7 @@ def main():
             # step 3: retrieve the motif and the massql query one by one
             motif, features, massql_query=parse_line_with_motif_and_query(line)
             # step 4: search for spectra with the motif in json file with MassQL
-            df_massql_matches=search_motif_with_massql(massql_query, path_to_HMDB_json_file)
+            df_massql_matches=search_motif_with_massql(massql_query, path_to_json_file)
             # step 5: make a file with all the mgf formatted spectra for every identified match for a motif
             make_mgf_file_for_spectra(motif, df_massql_matches, path_to_store_spectrum_files,
                                                                        dict_with_mgf_spectra)
