@@ -309,6 +309,74 @@ def read_json(json_file):
     print(df)
     return df
 
+def make_mgf_txt_file_for_spectrum(motif: str, spectrum_id: str, path_to_store_spectrum_files: str,
+                                       dict_with_mgf_spectra: dict) -> str:
+    """
+    Writes a spectrum containing the motif to a text file in mgf format using the identifier given by MassQL
+
+    :param motif: str, the Mass2Motif for which the MassQL query was made and for which the spectrum was found, which
+    contains the motif
+    :param spectrum_id: str, the spectrum_id of GNPS spectra files formatted like this: CCMSLIB00000425029
+    :param path_to_store_spectrum_files: str, folder where all the mgf-formatted text files with spectra will be stored.
+    :param dict_with_mgf_spectra: dict, with {spectrum_id:record} where each record is a string containing the mgf-style
+    spectrum of one compound
+    :return: path of the spectrum file with the HMDB identifier of the spectrum and the motif it is supposed to contain
+    in the file name.
+    """
+    # look for the corresponding HMDB identifier using the spectrum_id in dict of the mgf file,
+    # because MAGMa works with the HMDB identifier.
+    spectrum_record_mgf=dict_with_mgf_spectra[spectrum_id]
+    # in the current (10-2022) structures database of HMDB which is used for MAGMa a longer identifier is used, so the
+    # older identifier from GNPS needs to be adjusted
+    HMDB_id_of_spectrum = re.search(r'(.*)(HMDB:)(HMDB\d*)(-\d*)(.*)', spectrum_record_mgf).group(3)
+    adj_HMDB_id = HMDB_id_of_spectrum[:4] + '00' + HMDB_id_of_spectrum[4:]
+    # create the name for the spectrum file with the HMDB identifier and the motif that the spectrum contains according
+    # to MassQL
+    path_to_spectrum_file = Path(fr"{path_to_store_spectrum_files}/spectrum_{motif}_{adj_HMDB_id}.txt")
+    # write the mgf spectrum saved in the dict only to a text file if the text file doesn't exist already, if the text
+    # file does exist it is assumed to be the right text file in the right formatting
+    if os.path.exists(path_to_spectrum_file):
+         return os.path.abspath(path_to_spectrum_file)
+    else:
+        spectrum_file = open(path_to_spectrum_file, "w")
+        spectrum_file.write(dict_with_mgf_spectra[spectrum_id])
+        spectrum_file.close()
+        return os.path.abspath(path_to_spectrum_file)
+
+def write_path_to_file(path_to_file_with_motifs: str, path_to_spectrum_file: str) -> None:
+    """
+    Makes or appends a path of a spectrum file to a text file with paths of the spectrum files which contain Mass2Motifs
+
+    :param path_to_file_with_motifs: str, the path where the file with the selected motifs is stored
+    :param path_to_spectrum_file: str, path of the spectrum file with the HMDB identifier of the spectrum and the motif
+    it is supposed to contain in the file name.
+    :return:
+    """
+    # the paths to the spectrum files that are associated with all motifs according to MassQL will be stored in this
+    # document. This document will be used by the MAGMa.py script.
+    path, filename = os.path.split(path_to_file_with_motifs)
+
+    path_to_txt_file_with_paths = Path(fr"{path}/paths_to_spectrum_files_from_MassQL.txt")
+    # if the path to the spectrum names file already exists you should append to this file
+    if os.path.exists(path_to_txt_file_with_paths):
+        # however, you should only append a path that is not yet in the file!
+        with open(path_to_txt_file_with_paths, 'r') as file:
+            if path_to_spectrum_file in file.read():
+                file.close()
+                return None
+            else:
+                output_file = open(path_to_txt_file_with_paths, "a")
+                output_file.write(f"{path_to_spectrum_file}")
+                output_file.write("\n")
+                output_file.close()
+    # if the path to the spectrum names file doesn't exist make one and write the path to the spectrum file in it.
+    else:
+        output_file = open(path_to_txt_file_with_paths, "w")
+        output_file.write(f"{path_to_spectrum_file}")
+        output_file.write("\n")
+        output_file.close()
+    return None
+
 def delete_files(path_to_store_spectrum_files):
     # This function should be used in main...
     for file in os.scandir(path_to_store_spectrum_files):

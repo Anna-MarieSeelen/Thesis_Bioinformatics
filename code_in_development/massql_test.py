@@ -1,10 +1,10 @@
-#!/usr/bin/env massql
+#!/usr/bin/env python3
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
 Description: Takes a file with MassQL queries, searches for spectra in json file that contain the queries and writes
 these spectra to individual files in mgf-style.
-Usage: python3 *massql_test.py *path_to_file_with_motifs *path_to_HMDB_json_file* *path_to_store_spectrum_files*
+Usage: python3 *massql_search_spectra_with_motif.py *path_to_file_with_motifs *path_to_HMDB_json_file* *path_to_store_spectrum_files*
 *path_to_HMDB_mgf_file*
     path_to_file_with_motifs: a tab separated file with a selected motif, feature list and massql query on each line
     (output from make_pdf_with_smiles.py)
@@ -21,6 +21,7 @@ from pathlib import Path
 import re
 import os
 import pandas as pd
+import sys, os
 
 # functions
 def parse_input(HMDB_mgf_file: str) -> dict:
@@ -61,9 +62,11 @@ def parse_line_with_motif_and_query(line: str) -> tuple:
     :param line: str, line in a tab separated file containing the motif, list of features and the massql query
     :return: returns the motif, feature_list and the massql query in a tuple
     """
-    motif=re.search(r'(.*)    (.*)    (.*)', line).group(1)
-    features=re.search(r'(.*)    (.*)    (.*)', line).group(2)
-    massql_query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
+
+    splitted_line = line.split("\t")
+    assert len(
+        splitted_line) == 3, "Expected a file with lines with tabs seperating motif, feature_list and massql query"
+    motif, features, massql_query = splitted_line
     return motif,features,massql_query
 
 class Suppress:
@@ -77,7 +80,6 @@ class Suppress:
         self.original_stderr = None
 
     def __enter__(self):
-        import sys, os
         devnull = open(os.devnull, "w")
 
         # Suppress streams
@@ -90,7 +92,6 @@ class Suppress:
             sys.stderr = devnull
 
     def __exit__(self, *args, **kwargs):
-        import sys
         # Restore streams
         if self.suppress_stdout:
             sys.stdout = self.original_stdout
@@ -117,73 +118,47 @@ def search_motif_with_massql(massql_query: str, path_to_HMDB_json_file: str) -> 
         df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
         return df_massql_res
 
-def make_mgf_txt_file_for_spectrum(motif: str, spectrum_id: str, path_to_store_spectrum_files: str,
-                                       dict_with_mgf_spectra: dict) -> str:
+def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_to_store_spectrum_files: str,
+                                       dict_with_mgf_spectra: dict) -> None:
     """
     Writes a spectrum containing the motif to a text file in mgf format using the identifier given by MassQL
 
     :param motif: str, the Mass2Motif for which the MassQL query was made and for which the spectrum was found, which
     contains the motif
-    :param spectrum_id: str, the spectrum_id of GNPS spectra files formatted like this: CCMSLIB00000425029
-    :param path_to_store_spectrum_files: str, folder where all the mgf-formatted text files with spectra will be stored.
+    :param df_massql_matches: pd.Dataframe, with the spectrum ids of the spectra as the index which contain the
+    characteristics of the query. The spectrum_id of GNPS spectra files formatted like this: CCMSLIB00000425029
+    :param path_to_store_spectrum_files: str, folder where all the mgf-formatted text files (one for each motif) with
+    spectra will be stored.
     :param dict_with_mgf_spectra: dict, with {spectrum_id:record} where each record is a string containing the mgf-style
     spectrum of one compound
-    :return: path of the spectrum file with the HMDB identifier of the spectrum and the motif it is supposed to contain
-    in the file name.
+    :return: path of the file containing the spectrum or spectra for one motif found by MassQL with the motif in the
+    file name.
     """
-    # look for the corresponding HMDB identifier using the spectrum_id in dict of the mgf file,
-    # because MAGMa works with the HMDB identifier.
-    spectrum_record_mgf=dict_with_mgf_spectra[spectrum_id]
-    HMDB_id_of_spectrum = re.search(r'(.*)(HMDB:)(HMDB\d*)(-\d*)(.*)', spectrum_record_mgf).group(3)
-    # in the current (10-2022) structures database of HMDB which is used for MAGMa a longer identifier is used, so the
-    # older identifier from GNPS needs to be adjusted
-    adj_HMDB_id = HMDB_id_of_spectrum[:4] + '00' + HMDB_id_of_spectrum[4:]
-    # create the name for the spectrum file with the HMDB identifier and the motif that the spectrum contains according
-    # to MassQL
-    path_to_spectrum_file = Path(fr"{path_to_store_spectrum_files}/spectrum_{motif}_{adj_HMDB_id}.txt")
-    # write the mgf spectrum saved in the dict only to a text file if the text file doesn't exist already, if the text
-    # file does exist it is assumed to be the right text file in the right formatting
-    if os.path.exists(path_to_spectrum_file):
-         return os.path.abspath(path_to_spectrum_file)
-    else:
-        spectrum_file = open(path_to_spectrum_file, "w")
-        spectrum_file.write(dict_with_mgf_spectra[spectrum_id])
-        spectrum_file.close()
-        return os.path.abspath(path_to_spectrum_file)
-
-def write_path_to_file(path_to_file_with_motifs: str, path_to_spectrum_file: str) -> None:
-    """
-    Makes or appends a path of a spectrum file to a text file with paths of the spectrum files which contain Mass2Motifs
-
-    :param path_to_file_with_motifs: str, the path where the file with the selected motifs is stored
-    :param path_to_spectrum_file: str, path of the spectrum file with the HMDB identifier of the spectrum and the motif
-    it is supposed to contain in the file name.
-    :return:
-    """
-    # the paths to the spectrum files that are associated with all motifs according to MassQL will be stored in this
-    # document. This document will be used by the MAGMa.py script.
-    path, filename = os.path.split(path_to_file_with_motifs)
-
-    path_to_txt_file_with_paths = Path(fr"{path}/paths_to_spectrum_files_from_MassQL.txt")
-    # if the path to the spectrum names file already exists you should append to this file
-    if os.path.exists(path_to_txt_file_with_paths):
-        # however, you should only append a path that is not yet in the file!
-        with open(path_to_txt_file_with_paths, 'r') as file:
-            if path_to_spectrum_file in file.read():
-                file.close()
-                return None
+    # the dataframe can be empty for some motifs, but if its not empty
+    if df_massql_matches is not None:
+        # create a path to store the mgf spectra of the matches found for the motif by MassQL
+        path_to_spectra_file_for_motif = Path(
+            fr"{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt")
+        identifier_num = 0
+        for identifier, row in df_massql_matches.iterrows():
+            spectrum_record_mgf = dict_with_mgf_spectra[identifier]
+            # if its the first identifier of the dataframe: make the mgf_spectrum file
+            identifier_num += 1
+            if identifier_num == 1:
+                if os.path.exists(path_to_spectra_file_for_motif):
+                    assert False, f"The mgf spectra file for {motif} already exists, remove it"
+                # write to the new file
+                else:
+                    mgf_spectra_file = open(path_to_spectra_file_for_motif, "w")
+                    mgf_spectra_file.write(spectrum_record_mgf)
+                    mgf_spectra_file.close()
+            # else append to the file with mgf spectra if the identifier is not the first identifier
             else:
-                output_file = open(path_to_txt_file_with_paths, "a")
-                output_file.write(f"{path_to_spectrum_file}")
-                output_file.write("\n")
-                output_file.close()
-    # if the path to the spectrum names file doesn't exist make one and write the path to the spectrum file in it.
-    else:
-        output_file = open(path_to_txt_file_with_paths, "w")
-        output_file.write(f"{path_to_spectrum_file}")
-        output_file.write("\n")
-        output_file.close()
-    return None
+                mgf_spectra_file = open(path_to_spectra_file_for_motif, "a")
+                mgf_spectra_file.write(spectrum_record_mgf)
+                mgf_spectra_file.write("\n")
+                mgf_spectra_file.close()
+        return None
 
 def main():
     """Main function of this module"""
@@ -195,24 +170,17 @@ def main():
     dict_with_mgf_spectra=parse_input(path_to_HMDB_mgf_file)
     # step 2: parse the lines in the file where all the selected motifs and their corresponding massql queries are
     # listed.
-    lines_motif_file = open(path_to_file_with_motifs)
-    for line in lines_motif_file:
-        line = line.strip()
-        line = line.replace('\n', '')
-        # step 3: retrieve the motif and the massql query one by one
-        motif, features, massql_query=parse_line_with_motif_and_query(line)
-        # step 4: search for spectra with the motif in json file with MassQL
-        df_massql_matches=search_motif_with_massql(massql_query, path_to_HMDB_json_file)
-        # the dataframe can be empty for some motifs
-        if df_massql_matches is not None:
-            for identifier, row in df_massql_matches.iterrows():
-                #identifier="CCMSLIB00000426038" #result from HMDB with Motif_38
-                # step 5: make a spectrum file in mgf format for every identified match
-                path_to_spectrum_file = make_mgf_txt_file_for_spectrum(motif, identifier, path_to_store_spectrum_files,
-                                                                   dict_with_mgf_spectra)
-                # step 6: add the new spectrum file to a document with a list of spectrum files to be used by MAGMa for
-                # annotation.
-                write_path_to_file(path_to_file_with_motifs, path_to_spectrum_file)
+    with open(path_to_file_with_motifs, "r") as lines_motif_file:
+        for line in lines_motif_file:
+            line = line.strip()
+            line = line.replace('\n', '')
+            # step 3: retrieve the motif and the massql query one by one
+            motif, features, massql_query=parse_line_with_motif_and_query(line)
+            # step 4: search for spectra with the motif in json file with MassQL
+            df_massql_matches=search_motif_with_massql(massql_query, path_to_HMDB_json_file)
+            # step 5: make a file with all the mgf formatted spectra for every identified match for a motif
+            make_mgf_file_for_spectra(motif, df_massql_matches, path_to_store_spectrum_files,
+                                                                       dict_with_mgf_spectra)
 
 if __name__ == "__main__":
     main()

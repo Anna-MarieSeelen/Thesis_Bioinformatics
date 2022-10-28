@@ -396,13 +396,13 @@ def make_file_with_massql_querries(df_selected_motif_and_ratio: pd.DataFrame) ->
     :return: path of tab delimited text file with the selected motif, its fragments+probabilities and the MassQL query
     """
     file_path = Path(r"motif_massql_querries.txt")
-    spectrum_file = open(file_path, "w")
+    motif_query_file = open(file_path, "w")
     for index, row in df_selected_motif_and_ratio.iterrows():
-        spectrum_file.write("{0}    {1}    {2}".format(index, df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"],
+        motif_query_file.write("{0}\t{1}\t{2}".format(index, df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"],
                                                            make_MassQL_search(
                                                                df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"])))
-        spectrum_file.write("\n")
-    spectrum_file.close()
+        motif_query_file.write("\n")
+    motif_query_file.close()
     return os.path.abspath(file_path)
 
 def main() -> None:
