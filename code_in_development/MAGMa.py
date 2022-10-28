@@ -241,6 +241,23 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     print(f"list with losses {list_with_losses}")
     return list_with_losses
 
+#TODO: try to implement function of lars
+#molblock krijg je door SELECT mol FROM molecules
+#atoms list SELECT mol FROM molecules WHERE mass = {mass_of_frag} --> if you get a list from this so if multiple atoms have the same mass take the first one from list.
+def loss2smiles(molblock, atomlist):
+    """
+    Create smiles of the loss(es)
+    from molblock and list of fragment atoms
+    """
+    atoms = [int(a) for a in atomlist.split(',')]
+    mol = Chem.MolFromMolBlock(molblock)
+    emol = Chem.EditableMol(mol)
+    for atom in reversed(range(mol.GetNumAtoms())):
+        if atom in atoms:
+            emol.RemoveAtom(atom)
+    frag = emol.GetMol()
+    return Chem.MolToSmiles(frag)
+
 def get_smiles_of_loss(parent_string: str,fragment_string: str):
     """
     Takes the smiles of a parent ion and fragment ion and returns the smiles of the neutral loss
