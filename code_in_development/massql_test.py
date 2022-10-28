@@ -8,10 +8,10 @@ Usage: python3 *massql_search_spectra_with_motif.py *path_to_file_with_motifs *p
 *path_to_HMDB_mgf_file*
     path_to_file_with_motifs: a tab separated file with a selected motif, feature list and massql query on each line
     (output from make_pdf_with_smiles.py)
-    path_to_HMDB_json_file: the path to the file with HMDB MS/MS spectra retrieved from GNPS in json format
+    path_to_HMDB_json_file: the path to the file with MS/MS spectra retrieved from GNPS in json format
     path_to_store_spectrum_files: folder where all the mgf-formatted text files with spectra will be stored that contain
     a selected motif (determined by MassQL)
-    path_to_HMDB_mgf_file: the path to the file with mgf-formatted HMDB MS/MS spectra from GNPS
+    path_to_HMDB_mgf_file: the path to the file with mgf-formatted MS/MS spectra from GNPS
 """
 
 # import statements
@@ -24,19 +24,19 @@ import pandas as pd
 import sys, os
 
 # functions
-def parse_input(HMDB_mgf_file: str) -> dict:
+def parse_input(mgf_file: str) -> dict:
     """Parses mgf into strings, where each string is a spectrum and stores those in dict with the spectrum_id as key.
 
-    :param HMDB_mgf_file: str, name of mgf formatted file containing MS/MS spectra from GNPS
+    :param mgf_file: str, name of mgf formatted file containing MS/MS spectra from GNPS
     :return: dictionary with {spectrum_id:record} where each record is a string containing the mgf-style accession of one
     compound
     """
 
-    lines_HMDB_mgf_file=open(HMDB_mgf_file)
+    lines_mgf_file=open(mgf_file)
     spectrum_record_bool = False
     mgf_spectrum_records=[]
     mgf_spectrum_record = ""
-    for line in lines_HMDB_mgf_file:
+    for line in lines_mgf_file:
         if line.startswith("BEGIN IONS"):
             spectrum_record_bool=True
         if spectrum_record_bool:
@@ -99,12 +99,12 @@ class Suppress:
         if self.suppress_stderr:
             sys.stderr = self.original_stderr
 
-def search_motif_with_massql(massql_query: str, path_to_HMDB_json_file: str) -> pd.DataFrame:
+def search_motif_with_massql(massql_query: str, path_to_json_file: str) -> pd.DataFrame:
     """
     Uses MassQL to retrieve the identifiers of the spectra in the json file that contain the query
 
     :param massql_query: str, MassQL query made based on a Mass2Motif
-    :param path_to_HMDB_json_file: str, the path to a file with MS/MS spectra retrieved from GNPS in json format
+    :param path_to_json_file: str, the path to a file with MS/MS spectra retrieved from GNPS in json format
     :return: returns a Pandas dataframe with the spectrum ids of the spectra as the index which contain the
     characteristics of the query.
     """
@@ -112,7 +112,7 @@ def search_motif_with_massql(massql_query: str, path_to_HMDB_json_file: str) -> 
     # the class Suppress suppresses the output to the command line that the msql_engine is giving through a print
     # function.
     with Suppress(suppress_stderr=True, suppress_stdout=True):
-        df_massql_res=msql_engine.process_query(massql_query,path_to_HMDB_json_file)
+        df_massql_res=msql_engine.process_query(massql_query,path_to_json_file)
     if not df_massql_res.empty:
         df_massql_res.rename(columns={'scan': 'spectrum_id'}, inplace=True)
         df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
@@ -167,9 +167,9 @@ def main():
     path_to_file_with_motifs = argv[1]
     path_to_HMDB_json_file = argv[2]
     path_to_store_spectrum_files = argv[3]
-    path_to_HMDB_mgf_file = argv[4]
+    path_to_mgf_file = argv[4]
     # step 1: parse the mgf file with spectra and put into dictionary with spectrum id's as keys.
-    dict_with_mgf_spectra=parse_input(path_to_HMDB_mgf_file)
+    dict_with_mgf_spectra=parse_input(path_to_mgf_file)
     # step 2: parse the lines in the file where all the selected motifs and their corresponding massql queries are
     # listed.
     with open(path_to_file_with_motifs, "r") as lines_motif_file:
