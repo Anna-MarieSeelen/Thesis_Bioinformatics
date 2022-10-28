@@ -96,6 +96,10 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     e = subprocess.check_call(cmd, shell=True,stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
     return None
 
+#TODO: add_structures and remove structure database etc.
+
+magma add_structures -t smiles 'C(C(C(=O)O)N)C(O)=O' results.sqlite
+
 def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_results_db_file: str,
                                      max_num_break_bonds=10, structure_db="hmdb", ncpus=1) -> None:
     """
@@ -114,6 +118,8 @@ def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_resul
     cmd = f"magma annotate -b {max_num_break_bonds} -s {structure_db} -o {path_to_structures_database} -n {ncpus} {path_to_results_db_file}"
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     return None
+
+#TODO: deze functie kan verwijderd worden, want je hebt nu maar 1 molid.
 
 def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spectrum: str) -> int:
     """
@@ -153,6 +159,8 @@ def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spect
         #if the identifier of the spectrum does not match an identifier in the results database, MAGMa did not find the
         # compound the spectrum actually belongs to, so return None, we cannot use the fragment annotations.
     print("no molid matches with the HMDB identifier")
+
+#TODO: hier kun je WHERE molid verwijderen.
 
 def fetch_fragments_and_annotations_for_molid(molid: int,path_to_results_db_file: str) -> list:
     """
