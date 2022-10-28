@@ -1,4 +1,4 @@
-#!/usr/bin/env MAGMa
+#!/usr/bin/env python3
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
