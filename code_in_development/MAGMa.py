@@ -232,7 +232,9 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
         if index !=0:
             precusor_mz, precusor_smiles=list_with_fragments_and_smiles[0]
             fragment_mz, fragment_smiles=fragment
-            list_with_losses.append(precusor_mz-fragment_mz)
+            calculated_loss = Decimal(precusor_mz - fragment_mz).quantize(Decimal('.01'),
+                                                                          rounding=ROUND_DOWN)
+            list_with_losses.append(calculated_loss)
         else:
             precusor_mz, precusor_smiles = fragment
             list_with_losses.append(precusor_mz)
@@ -253,10 +255,11 @@ def get_mol_block(path_to_results_db_file: str):
     """
     conn = sqlite3.connect(path_to_results_db_file)
     sqlite_command = \
-        f"""SELECT mol FROM molecules"""
+        f"""SELECT mol FROM molecules WHERE molid=1"""
     cur = conn.cursor()
     cur.execute(sqlite_command)
     molblock=cur.fetchall()
+    molblock=molblock[0][0]
     print(f"molblock {molblock}")
     return molblock
 
@@ -271,10 +274,11 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
         """
     conn = sqlite3.connect(path_to_results_db_file)
     sqlite_command = \
-        f"""SELECT mol FROM molecules WHERE mass = {mass_of_frag}"""
+        f"""SELECT atoms FROM fragments WHERE mz = {mass_of_frag}"""
     cur = conn.cursor()
     cur.execute(sqlite_command)
     atom_list = cur.fetchall()
+    atom_list=atom_list[0][0]
     print(f"atomlist {atom_list}")
     #if len(atom_list) is > 2: atom_list[0]
     return atom_list
@@ -306,7 +310,7 @@ def get_smiles_of_loss(parent_string: str,fragment_string: str):
     fragment = Chem.MolFromSmiles(fragment_string)
     #print(Chem.MolToSmiles(fragment))
     # sometimes a parent or fragment string given by MAGMa cannot be converted into a real molecule and then an error
-    # is thrown in this function, an ArgumentError... but how do I handle an error of this imported function?
+    # is thrown in this function, an ArgumentError
     try:
         neutral_loss = Chem.ReplaceCore(parent, fragment)
     except:
@@ -358,6 +362,7 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     print(list_of_features)
     list_with_annotated_features = []
     for feature in list_of_features:
+        print(feature)
         # more than 1 feature could be annotated by MAGMa so make a list of lists with
         # if the feature in the motif is a loss
         if re.search(r'loss', feature) != None:
@@ -372,13 +377,17 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                     # then retrieve the corresponding fragment string and the parent string belonging to the loss
                     precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
-                    atomlist=get_atom_list(path_to_results_db_file, fragment_mz)
                     molblock=get_mol_block(path_to_results_db_file)
+                    print(molblock)
+                    atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
+                    print(float(fragment_mz))
+                    print(atomlist)
                     smiles_neutral_loss=loss2smiles(molblock, atomlist)
                     #smiles_neutral_loss=get_smiles_of_loss(precusor_smiles, fragment_smiles)
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
+                        #TODO: hier een except statement!!
                         mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
                         print(mol_weight_from_smiles)
                         rounded_mol_weight_from_smiles=Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
@@ -405,7 +414,8 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 if float(rounded_fragment) in np.arange(lower_bound, upper_bound+0.01, 0.01):
                     count=1
                     list_with_annotated_features.append([feature,fragment_smiles, count])
-    print(list_with_annotated_features)
+                    print([feature, fragment_smiles, count])
+    print(f"list with annotated features {list_with_annotated_features}")
     return list_with_annotated_features
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
@@ -448,19 +458,32 @@ def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_moti
     """
     for feature in list_with_annotated_features:
         cell=df_with_motifs.at[current_motif,"LoL_feature_annotation_counts"]
+        print("cell before")
+        print(cell)
         # if there are already annotations in the cell see if they are similar to the current annotation
         if cell!="":
-            for list_with_feature in cell:
-                if list_with_feature[0] == feature[0]:
-                    if list_with_feature[1] == feature[1]:
-                        list_with_feature[2] = int(list_with_feature[2]) + 1
-                    else:
-                        cell.append(feature)
-                else:
+            list_of_features_in_df=[list_with_feature[0] for list_with_feature in cell]
+            if feature[0] not in list_of_features_in_df:
+                cell.append(feature)
+            else:
+                list_of_smiles_in_df = [list_with_feature[1] for list_with_feature in cell]
+                if feature[1] not in list_of_smiles_in_df:
                     cell.append(feature)
+                else:
+                    for list_with_feature in cell:
+                        if list_with_feature[0] == feature[0]:
+                            print(f"this is fragment in df {list_with_feature[0]} and new fragment {feature[0]}")
+                            if list_with_feature[1] == feature[1]:
+                                print(
+                                    f"this is annotation in df {list_with_feature[1]} and annotation new {feature[1]}")
+                                list_with_feature[2] = int(list_with_feature[2]) + 1
+                                print(f"this is count in df {list_with_feature[2]} and count new {feature[2]}")
+
         # if there are no annotations in the cell just add the list containing the feature, annotation and count.
         else:
             df_with_motifs.at[current_motif,"LoL_feature_annotation_counts"] = [(feature),]
+        print("cell after")
+        print(cell)
     return df_with_motifs
 
 def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -> str:
@@ -494,7 +517,6 @@ def main():
     path_to_txt_file_with_motif_and_frag=argv[3]
     # step 1: make a dataframe to put the annotations in for the features (so the output)
     file_path, df_with_motifs = make_output_file(path_to_txt_file_with_motif_and_frag)
-
     with open(path_to_txt_file_with_motif_and_frag, "r") as lines_motif_file:
         for line in lines_motif_file:
             line = line.strip()
@@ -503,18 +525,20 @@ def main():
             motif, features, massql_query = parse_line_with_motif_and_query(line)
             for file in os.listdir(path_to_store_spectrum_files):
                 if re.search(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
-                    dict_with_mgf_spectra=parse_input(f"{path_to_store_spectrum_files}/{file}")
+                    dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/{file}")
                     for spectrum_id in dict_with_mgf_spectra.keys():
-                        new_or_exists, path_to_results_db_file=construct_path_to_db(spectrum_id, path_to_store_results_db)
+                        print(spectrum_id)
+                        new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id, path_to_store_results_db)
                         if new_or_exists == "new":
                             pre_work = time.perf_counter()
                             print("all the prework {0}".format(pre_work - before_script))
                             initialize_db_to_save_results(path_to_results_db_file)
                             print(path_to_results_db_file)
                             after_init = time.perf_counter()
-                            print("init database + all the prework {0}".format(after_init-pre_work))
-                            mgf_spectrum_record=dict_with_mgf_spectra[spectrum_id]
-                            path_to_spectrum_file = make_mgf_txt_file_for_spectrum(spectrum_id, mgf_spectrum_record, path_to_store_spectrum_files)
+                            print("init database + all the prework {0}".format(after_init - pre_work))
+                            mgf_spectrum_record = dict_with_mgf_spectra[spectrum_id]
+                            path_to_spectrum_file = make_mgf_txt_file_for_spectrum(spectrum_id, mgf_spectrum_record,
+                                                                                   path_to_store_spectrum_files)
                             # step 3: add spectrum to be annotated into the results database
                             before_add_spectrum = time.perf_counter()
                             add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
@@ -522,9 +546,9 @@ def main():
                                                  mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
                                                  ionisation=1)
                             after_add_spectrum = time.perf_counter()
-                            print("all the prework {0}".format(after_add_spectrum- before_add_spectrum))
+                            print("all the prework {0}".format(after_add_spectrum - before_add_spectrum))
                             if re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1) != None:
-                                smiles=re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1)
+                                smiles = re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1)
                                 print(smiles)
                                 add_structure_to_db(path_to_results_db_file, smiles)
 
@@ -544,12 +568,13 @@ def main():
                         after_look_for_motif = time.perf_counter()
                         print("look for features {0}".format(after_look_for_motif - after_annotate))
                         # step 7: get a list of the annotated fragments and smiles of the matched compound
-                        list_with_fragments_and_smiles=fetch_fragments_and_annotations(path_to_results_db_file)
+                        list_with_fragments_and_smiles = fetch_fragments_and_annotations(path_to_results_db_file)
                         after_get_fragments = time.perf_counter()
                         print("fetch fragments {0}".format(after_get_fragments - after_look_for_motif))
                         # step 8: look for matches in the two lists so you end up with a list with only smiles for the features of the
                         # current motif
-                        list_with_annotated_features=search_for_smiles(list_of_features,list_with_fragments_and_smiles)
+                        list_with_annotated_features = search_for_smiles(list_of_features, list_with_fragments_and_smiles,
+                                                                         path_to_results_db_file)
                         # The list with annotated features could be None if the features of the motif are not in the list of
                         # annotated features by MAGMa or if for example the neutral loss is splintered across the molecule, and
                         # not 1 side group.
@@ -557,7 +582,7 @@ def main():
                             after_get_smiles = time.perf_counter()
                             print("search smiles {0}".format(after_get_smiles - after_get_fragments))
                             # step 9: adds the new annotations for the features from the spectrum file in the database
-                            df_with_motifs=write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, motif)
+                            df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, motif)
                             print(df_with_motifs)
                         else:
                             print("none of the features could be annotated")
