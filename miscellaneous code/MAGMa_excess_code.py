@@ -27,6 +27,81 @@ from matchms.filtering import add_losses
 from rdkit import Chem
 from rdkit.Chem import rdFMCS
 
+def construct_path_to_db(path_to_spectrum_file: str, path_to_store_results_db: str) -> tuple:
+    # generate a good database name with the spectrum id and motif in it.
+    print(path_to_spectrum_file)
+    path, filename = os.path.split(path_to_spectrum_file)
+    print(filename)
+    identifier = re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(3)
+    motif = re.search(r'(spectrum_)(.*motif.*)_(HMDB.*)(.txt)', filename).group(2)
+    # realpath of the database
+    file_path_out = Path(fr"{path_to_store_results_db}/MAGMa_db_{identifier}.sqlite")
+    # if you try to annotate something in an existing database it will go wrong, so if the database exists do not
+    # annotate it again.
+    if os.path.exists(file_path_out):
+        #assert False, "The results db for this spectrum already exists, remove it"
+        return "exists", file_path_out, identifier, motif
+    else:
+        return "new", file_path_out, identifier, motif
+
+def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_results_db_file: str,
+                                     max_num_break_bonds=10, structure_db="hmdb", ncpus=1) -> None:
+    """
+    Finds matches for spectrum in structure database and annotates generated fragments using MAGMa CL annotate function.
+
+    :param path_to_structures_database: str, path where the structure database is which was downloaded from HMDB and
+    formatted with process_hmdb.py from MAGMa
+    :param path_to_results_db_file: str, path to the results database in which the spectrum and annotations will be
+    stored
+    :param max_num_break_bonds: int, maximum number of bond breaks to generate substructures (default: 10)
+    :param structure_db: {pubchem,kegg,hmdb}, structure database from which the matches should be retrieved
+    (default: hmdb)
+    :param ncpus: int, number of parallel cpus to use for annotation (default: 1)
+    :return: None
+    """
+    cmd = f"magma annotate -b {max_num_break_bonds} -s {structure_db} -o {path_to_structures_database} -n {ncpus} {path_to_results_db_file}"
+    e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+    return None
+
+def get_molid_of_matched_compound(path_to_results_db_file: str, identifier_spectrum: str) -> int:
+    """
+    Retrieves the molid for the compound with the same HMDB identifier as the HMDB identifier of the spectrum file.
+
+    :param path_to_results_db_file: str, path to the results database in which the spectrum and annotations are stored
+    :param identifier_spectrum: str, the HMDB identifier of the spectrum
+    :return: None or int, the molid for the compound with the same HMDB identifier as the HMDB identifier of the
+    spectrum file.
+
+    Basically you only want the MAGMa annotation for the compound which is the same compound as the spectrum, and since
+    we are using the same database for the structures and for MassQL we can look up the right compound with the HMDB
+    identifier.
+    """
+    print(path_to_results_db_file)
+    conn = sqlite3.connect(path_to_results_db_file)
+    sqlite_command = \
+        f"""SELECT name FROM molecules"""
+    cur = conn.cursor()
+    cur.execute(sqlite_command)
+    list_of_identifiers_of_matches = cur.fetchall()
+    list_of_identifiers_of_matches = list(map(''.join,list_of_identifiers_of_matches))
+    print(list_of_identifiers_of_matches)
+    for identifier in list_of_identifiers_of_matches:
+        print(str(re.search(r'.*\((HMDB.*)\).*', identifier).group(1)))
+        #if the identifier of the spectrum matches an identifier in the results database, fetch that molid
+        if identifier_spectrum==str(re.search(r'.*\((HMDB.*)\).*', identifier).group(1)):
+            conn = sqlite3.connect(path_to_results_db_file)
+            sqlite_command = \
+                f"""SELECT molid FROM molecules WHERE name = '{identifier}'"""
+            cur = conn.cursor()
+            cur.execute(sqlite_command)
+            molid=cur.fetchall()
+            molid=[i[0] for i in molid][0]
+            print(molid)
+            return molid
+        #if the identifier of the spectrum does not match an identifier in the results database, MAGMa did not find the
+        # compound the spectrum actually belongs to, so return None, we cannot use the fragment annotations.
+    print("no molid matches with the HMDB identifier")
+
 def convert_json_to_sqlite(path_to_json_file,dir_database):
     connection = sqlite3.connect('{0}'.format(dir_database))
     cursor = connection.cursor()
