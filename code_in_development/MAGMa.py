@@ -307,6 +307,8 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     # for every feature in the motif
     print(list_of_features)
     list_with_annotated_features = []
+    precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
+    print(precursor_smiles)
     for feature in list_of_features:
         print(feature)
         # more than 1 feature could be annotated by MAGMa so make a list of lists with
@@ -321,7 +323,7 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 upper_bound=round(float(re.search(r'\_(.*)', feature).group(1)), 2)+0.01
                 if float(rounded_loss) in np.arange(lower_bound, upper_bound+0.01, 0.01):
                     # then retrieve the corresponding fragment string and the parent string belonging to the loss
-                    #precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
+                    precusor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
                     molblock=get_mol_block(path_to_results_db_file)
                     atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
