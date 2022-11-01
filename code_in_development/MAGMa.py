@@ -479,8 +479,8 @@ def main():
             for file in os.listdir(path_to_store_spectrum_files):
                 if re.search(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
                     dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/{file}")
-                    print(f"the amount of spectra found in MassQL for this motif: {len(dict_with_mgf_spectra.keys())}")
-                    print(f"the identifiers of spectra found in MassQL for this motif: {dict_with_mgf_spectra.keys()}")
+                    print(f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
+                    print(f"the identifiers of spectra found in MassQL for motif {motif}: {dict_with_mgf_spectra.keys()}")
                     for spectrum_id in dict_with_mgf_spectra.keys():
                         print(spectrum_id)
                         new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id, path_to_store_results_db)
