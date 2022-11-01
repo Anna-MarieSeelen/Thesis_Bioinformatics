@@ -44,6 +44,55 @@ def construct_path_to_db(path_to_spectrum_file: str, path_to_store_results_db: s
     else:
         return "new", file_path_out, identifier, motif
 
+def get_smiles_of_loss(parent_string: str,fragment_string: str):
+    """
+    Takes the smiles of a parent ion and fragment ion and returns the smiles of the neutral loss
+
+    :param parent_string: str, smiles of the precursor ion
+    :param fragment_string: str, smiles of the annotated fragment
+    :return: str, smiles of the neutral loss
+    """
+    parent = Chem.MolFromSmiles(parent_string)
+    print(Chem.MolToSmiles(parent))
+    fragment = Chem.MolFromSmiles(fragment_string)
+    # sometimes a parent or fragment string given by MAGMa cannot be converted into a real molecule and then an error
+    # is thrown in this function, an ArgumentError
+    try:
+        neutral_loss = Chem.ReplaceCore(parent, fragment)
+    except:
+        return None
+    print(Chem.MolToSmiles(neutral_loss))
+    # if the fragment smiles is not present in the parent smiles then neutral loss could be None
+    if neutral_loss != None:
+        try:
+            neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
+            print(neutral_loss)
+        # the results from replace core could be a molecule that is not a real molecule upon which Chem.GetMolFrag will
+        # give an error, so that function should be tried.
+        except:
+            print("neutral loss probably not a good molecule, so not added to results")
+            return None
+        print("this is neutral loss")
+        print(neutral_loss)
+        smiles_neutral_loss = ""
+        for loss in neutral_loss:
+            # if the neutral loss is a list of more substructures than the neutral loss is not 1 substructure, but a
+            # splintered substructure and its hard to put back to a molecule that makes sense, so then its not returned.
+            print(Chem.MolToSmiles(loss))
+            part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
+                                        Chem.MolToSmiles(loss)).group(2)
+            print(part_of_smiles_loss)
+            # the neutral loss is added into one string
+            smiles_neutral_loss+=part_of_smiles_loss
+            if len(neutral_loss)>1:
+                print("splintered substructure")
+                try:
+                    MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
+                except:
+                    return None
+            print(smiles_neutral_loss)
+        return smiles_neutral_loss
+
 def annotate_spectrum_with_MAGMa(path_to_structures_database: str, path_to_results_db_file: str,
                                      max_num_break_bonds=10, structure_db="hmdb", ncpus=1) -> None:
     """

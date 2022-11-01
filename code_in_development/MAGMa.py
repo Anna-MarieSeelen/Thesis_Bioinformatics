@@ -241,9 +241,6 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     print(f"list with losses {list_with_losses}")
     return list_with_losses
 
-#TODO: try to implement function of lars
-#molblock krijg je door SELECT mol FROM molecules
-#atoms list SELECT mol FROM molecules WHERE mass = {mass_of_frag} --> if you get a list from this so if multiple atoms have the same mass take the first one from list.
 def get_mol_block(path_to_results_db_file: str):
     """
     Makes list of tuples containing the fragment m/z and smiles for each fragment of indicated molid
@@ -255,7 +252,7 @@ def get_mol_block(path_to_results_db_file: str):
     """
     conn = sqlite3.connect(path_to_results_db_file)
     sqlite_command = \
-        f"""SELECT mol FROM molecules WHERE molid=1"""
+        f"""SELECT mol FROM molecules"""
     cur = conn.cursor()
     cur.execute(sqlite_command)
     molblock=cur.fetchall()
@@ -280,7 +277,6 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     atom_list = cur.fetchall()
     atom_list=atom_list[0][0]
     print(f"atomlist {atom_list}")
-    #if len(atom_list) is > 2: atom_list[0]
     return atom_list
 
 def loss2smiles(molblock, atomlist):
@@ -296,56 +292,6 @@ def loss2smiles(molblock, atomlist):
             emol.RemoveAtom(atom)
     frag = emol.GetMol()
     return Chem.MolToSmiles(frag)
-
-def get_smiles_of_loss(parent_string: str,fragment_string: str):
-    """
-    Takes the smiles of a parent ion and fragment ion and returns the smiles of the neutral loss
-
-    :param parent_string: str, smiles of the precursor ion
-    :param fragment_string: str, smiles of the annotated fragment
-    :return: str, smiles of the neutral loss
-    """
-    parent = Chem.MolFromSmiles(parent_string)
-    print(Chem.MolToSmiles(parent))
-    fragment = Chem.MolFromSmiles(fragment_string)
-    #print(Chem.MolToSmiles(fragment))
-    # sometimes a parent or fragment string given by MAGMa cannot be converted into a real molecule and then an error
-    # is thrown in this function, an ArgumentError
-    try:
-        neutral_loss = Chem.ReplaceCore(parent, fragment)
-    except:
-        return None
-    print(Chem.MolToSmiles(neutral_loss))
-    # if the fragment smiles is not present in the parent smiles then neutral loss could be None
-    if neutral_loss != None:
-        try:
-            neutral_loss = Chem.GetMolFrags(neutral_loss, asMols=True)
-            print(neutral_loss)
-        # the results from replace core could be a molecule that is not a real molecule upon which Chem.GetMolFrag will
-        # give an error, so that function should be tried.
-        except:
-            print("neutral loss probably not a good molecule, so not added to results")
-            return None
-        print("this is neutral loss")
-        print(neutral_loss)
-        smiles_neutral_loss = ""
-        for loss in neutral_loss:
-            # if the neutral loss is a list of more substructures than the neutral loss is not 1 substructure, but a
-            # splintered substructure and its hard to put back to a molecule that makes sense, so then its not returned.
-            print(Chem.MolToSmiles(loss))
-            part_of_smiles_loss = re.search(r'(\[.*\])(.*)',
-                                        Chem.MolToSmiles(loss)).group(2)
-            print(part_of_smiles_loss)
-            # the neutral loss is added into one string
-            smiles_neutral_loss+=part_of_smiles_loss
-            if len(neutral_loss)>1:
-                print("splintered substructure")
-                try:
-                    MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
-                except:
-                    return None
-            print(smiles_neutral_loss)
-        return smiles_neutral_loss
 
 def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file) -> list:
     """
@@ -375,31 +321,38 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 upper_bound=round(float(re.search(r'\_(.*)', feature).group(1)), 2)+0.01
                 if float(rounded_loss) in np.arange(lower_bound, upper_bound+0.01, 0.01):
                     # then retrieve the corresponding fragment string and the parent string belonging to the loss
-                    precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
+                    #precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
                     molblock=get_mol_block(path_to_results_db_file)
-                    print(molblock)
                     atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
                     print(float(fragment_mz))
-                    print(atomlist)
                     smiles_neutral_loss=loss2smiles(molblock, atomlist)
-                    #smiles_neutral_loss=get_smiles_of_loss(precusor_smiles, fragment_smiles)
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
-                        #TODO: hier een except statement!!
-                        mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
-                        print(mol_weight_from_smiles)
-                        rounded_mol_weight_from_smiles=Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
-                                                                          rounding=ROUND_DOWN)
+                        # sometimes the molecular weight cannot be calculated if the loss is from a cyclic molecule
+                        # because some atoms will be lowercase, but the molecule will not be aromatic.
+                        try:
+                            mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
+                            print(mol_weight_from_smiles)
+                        # if the molecular weight cannot be calculated convert all the lowercase letters to uppercase,
+                        # because then you will get a molecule that is not aromatic and does not have aromatic atoms
+                        except:
+                            all_uppercase_smiles=smiles_neutral_loss.upper()
+                            mol_weight_from_smiles = MolWt(Chem.MolFromSmiles(f'{all_uppercase_smiles}'))
+
+                        rounded_mol_weight_from_smiles = Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
+                                                                                                      rounding=ROUND_DOWN)
                         print(rounded_mol_weight_from_smiles)
-                        if rounded_mol_weight_from_smiles==float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
+                        if rounded_mol_weight_from_smiles == float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
                             count = 1
-                            list_with_annotated_features.append([feature,smiles_neutral_loss, count])
+                            list_with_annotated_features.append([feature, smiles_neutral_loss, count])
                         # if the mass is not the same as the reported feature then the mass is reported in the output file
                         else:
                             count = 1
-                            list_with_annotated_features.append([feature,smiles_neutral_loss, count, mol_weight_from_smiles])
+                            list_with_annotated_features.append(
+                                [feature, smiles_neutral_loss, count, mol_weight_from_smiles])
+
         # if feature is not a loss
         else:
             for fragment in list_with_fragments_and_smiles:
