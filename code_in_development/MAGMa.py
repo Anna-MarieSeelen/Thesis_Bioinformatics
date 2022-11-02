@@ -32,6 +32,8 @@ import time
 import shutil
 import pandas as pd
 import numpy as np
+from rdkit.Chem.Draw import IPythonConsole
+from rdkit.Chem import Draw
 
 #functions
 
@@ -121,7 +123,7 @@ def initialize_db_to_save_results(path_to_results_db) -> None:
     return None
 
 def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: str,
-                                             abs_intensity_thres=0, mz_precision_ppm=80, mz_precision_abs=0.01,
+                                             abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01,
                                              spectrum_file_type='mgf', ionisation=1) -> None:
     """
     Adds the spectrum to be annotated in the sqlite results database using the MAGMa CL read_ms_data function.
@@ -167,7 +169,7 @@ def annotate_spectrum_with_MAGMa(path_to_results_db_file: str,
     :param ncpus: int, number of parallel cpus to use for annotation (default: 1)
     :return: None
     """
-    cmd = f"magma annotate -b {max_num_break_bonds} -u -n {ncpus} {path_to_results_db_file}"
+    cmd = f"magma annotate -b {max_num_break_bonds} -n {ncpus} {path_to_results_db_file}"
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     return None
 
@@ -290,6 +292,7 @@ def loss2smiles(molblock, atomlist):
         if atom in atoms:
             emol.RemoveAtom(atom)
     frag = emol.GetMol()
+    print(frag)
     return Chem.MolToSmiles(frag)
 
 def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file) -> list:
@@ -306,8 +309,6 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     # for every feature in the motif
     print(list_of_features)
     list_with_annotated_features = []
-    precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
-    print(precursor_smiles)
     for feature in list_of_features:
         print(feature)
         # more than 1 feature could be annotated by MAGMa so make a list of lists with
@@ -322,7 +323,8 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 upper_bound=round(float(re.search(r'\_(.*)', feature).group(1)), 2)+0.01
                 if float(rounded_loss) in np.arange(lower_bound, upper_bound+0.01, 0.01):
                     # then retrieve the corresponding fragment string and the parent string belonging to the loss
-                    precusor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
+                    precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
+                    print(precursor_smiles)
                     fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
                     molblock=get_mol_block(path_to_results_db_file)
                     atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
@@ -367,11 +369,23 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 print(np.arange(lower_bound, upper_bound+0.01, 0.01))
                 print(float(rounded_fragment))
                 if float(rounded_fragment) in np.arange(lower_bound, upper_bound+0.01, 0.01):
+                    precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
+                    print(precursor_smiles)
                     count=1
                     list_with_annotated_features.append([feature,fragment_smiles, count])
                     print([feature, fragment_smiles, count])
     print(f"list with annotated features {list_with_annotated_features}")
     return list_with_annotated_features
+
+def vis_substructure_in_precursor_mol(precursor_smiles,atom_list):
+    atoms = [int(a) for a in atomlist.split(',')]
+    m = Chem.MolFromSmiles('c1cc(C(=O)O)c(OC(=O)C)cc1')
+    m.__sssAtoms = [0, 1, 2, 6, 11, 12]
+    IPythonConsole.ipython_useSVG = False
+    IPythonConsole.drawOptions.useBWAtomPalette()
+    IPythonConsole.molSize = 300, 300
+    Draw.MolsToGridImage(m)
+
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     """
