@@ -32,7 +32,6 @@ import time
 import shutil
 import pandas as pd
 import numpy as np
-from rdkit.Chem.Draw import IPythonConsole
 from rdkit.Chem import Draw
 
 #functions
@@ -288,14 +287,20 @@ def loss2smiles(molblock, atomlist):
     atoms = [int(a) for a in atomlist.split(',')]
     mol = Chem.MolFromMolBlock(molblock)
     emol = Chem.EditableMol(mol)
+    print(mol.GetNumAtoms())
     for atom in reversed(range(mol.GetNumAtoms())):
         if atom in atoms:
             emol.RemoveAtom(atom)
     frag = emol.GetMol()
-    print(frag)
-    return Chem.MolToSmiles(frag)
+    full_molecule=list(reversed(range(mol.GetNumAtoms())))
+    for atom in full_molecule:
+        if atom in full_molecule:
+            full_molecule.pop(atom)
+    full_molecule = [str(atom) for atom in full_molecule]
+    full_molecule=", ".join(full_molecule)
+    return full_molecule, Chem.MolToSmiles(frag)
 
-def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file) -> list:
+def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file, identifier, motif) -> list:
     """
     Makes a list of lists of features of the mass2motif that are annotated by MAGMa
 
@@ -330,10 +335,13 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                     atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
                     print(np.arange(lower_bound, upper_bound + 0.01, 0.01))
                     print(float(rounded_loss))
-                    smiles_neutral_loss=loss2smiles(molblock, atomlist)
+                    neutral_loss_atom_list, smiles_neutral_loss=loss2smiles(molblock, atomlist)
+                    print(neutral_loss_atom_list)
+                    # if the smiles of the neutral_loss could be found with the loss2smiles function
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
+                        vis_substructure_in_precursor_mol(precursor_smiles, neutral_loss_atom_list, identifier, motif)
                         # sometimes the molecular weight cannot be calculated if the loss is from a cyclic molecule
                         # because some atoms will be lowercase, but the molecule will not be aromatic.
                         try:
@@ -369,7 +377,9 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 print(np.arange(lower_bound, upper_bound+0.01, 0.01))
                 print(float(rounded_fragment))
                 if float(rounded_fragment) in np.arange(lower_bound, upper_bound+0.01, 0.01):
+                    atomlist = get_atom_list(path_to_results_db_file, float(fragment_mz))
                     precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
+                    vis_substructure_in_precursor_mol(precursor_smiles, atomlist, identifier, motif)
                     print(precursor_smiles)
                     count=1
                     list_with_annotated_features.append([feature,fragment_smiles, count])
@@ -377,15 +387,11 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     print(f"list with annotated features {list_with_annotated_features}")
     return list_with_annotated_features
 
-def vis_substructure_in_precursor_mol(precursor_smiles,atom_list):
-    atoms = [int(a) for a in atomlist.split(',')]
-    m = Chem.MolFromSmiles('c1cc(C(=O)O)c(OC(=O)C)cc1')
-    m.__sssAtoms = [0, 1, 2, 6, 11, 12]
-    IPythonConsole.ipython_useSVG = False
-    IPythonConsole.drawOptions.useBWAtomPalette()
-    IPythonConsole.molSize = 300, 300
-    Draw.MolsToGridImage(m)
-
+def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, identifier, motif):
+    atoms = [int(a) for a in atom_list.split(',')]
+    m = Chem.MolFromSmiles(precursor_smiles)
+    img=Draw.MolToFile(m, f"{identifier}_{motif}.png", highlightAtomList = atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None, fitImage=False, options=None)
+    return img
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     """
@@ -494,9 +500,8 @@ def main():
             motif, features, massql_query = parse_line_with_motif_and_query(line)
             for file in os.listdir(path_to_store_spectrum_files):
                 if re.search(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
+                    amount_of_annotated_spectra=0
                     dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/{file}")
-                    print(f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
-                    print(f"the identifiers of spectra found in MassQL for motif {motif}: {dict_with_mgf_spectra.keys()}")
                     for spectrum_id in dict_with_mgf_spectra.keys():
                         print(spectrum_id)
                         new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id, path_to_store_results_db)
@@ -547,7 +552,7 @@ def main():
                         # current motif
                         before_smiles = time.perf_counter()
                         list_with_annotated_features = search_for_smiles(list_of_features, list_with_fragments_and_smiles,
-                                                                         path_to_results_db_file)
+                                                                         path_to_results_db_file, spectrum_id, motif)
                         after_smiles = time.perf_counter()
                         print("got the smiles within {0}".format(after_smiles - before_smiles))
                         # The list with annotated features could be None if the features of the motif are not in the list of
@@ -555,10 +560,16 @@ def main():
                         # not 1 side group.
                         if list_with_annotated_features is not None:
                             # step 9: adds the new annotations for the features from the spectrum file in the database
+                            amount_of_annotated_spectra+=1
                             df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, motif)
                         else:
                             print("none of the features could be annotated")
                         print("one spectrum done")
+                    print(
+                        f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
+                    print(
+                        f"the identifiers of spectra found in MassQL for motif {motif}: {dict_with_mgf_spectra.keys()}")
+                    print(f"amount of spectra that had an annotation for {motif} is {amount_of_annotated_spectra}")
     # step 10: writes the dataframe to a tab-delimited file
     write_output_to_file(df_with_motifs, file_path)
     after_script=time.perf_counter()
