@@ -33,6 +33,7 @@ import shutil
 import pandas as pd
 import numpy as np
 from rdkit.Chem import Draw
+from rdkit.Chem.Draw.MolDrawing import DrawingOptions
 
 #functions
 
@@ -281,24 +282,21 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
 
 def loss2smiles(molblock, atomlist):
     """
+    Get the atom list and the rdkit.Mol class of the neutral loss
     Create smiles of the loss(es)
     from molblock and list of fragment atoms
     """
     atoms = [int(a) for a in atomlist.split(',')]
     mol = Chem.MolFromMolBlock(molblock)
     emol = Chem.EditableMol(mol)
-    print(mol.GetNumAtoms())
     for atom in reversed(range(mol.GetNumAtoms())):
         if atom in atoms:
             emol.RemoveAtom(atom)
     frag = emol.GetMol()
-    full_molecule=list(reversed(range(mol.GetNumAtoms())))
-    for atom in full_molecule:
-        if atom in full_molecule:
-            full_molecule.pop(atom)
-    full_molecule = [str(atom) for atom in full_molecule]
-    full_molecule=", ".join(full_molecule)
-    return full_molecule, Chem.MolToSmiles(frag)
+    neutral_loss_atom_list=mol.GetSubstructMatch(frag)
+    neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
+    neutral_loss_atom_list=", ".join(neutral_loss_atom_list)
+    return neutral_loss_atom_list, Chem.MolToSmiles(frag)
 
 def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file, identifier, motif) -> list:
     """
@@ -388,10 +386,16 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     return list_with_annotated_features
 
 def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, identifier, motif):
+    draw_opt = DrawingOptions()
+    draw_opt.colorBonds=False
+    draw_opt.atomLabelFontSize=40
     atoms = [int(a) for a in atom_list.split(',')]
     m = Chem.MolFromSmiles(precursor_smiles)
-    img=Draw.MolToFile(m, f"{identifier}_{motif}.png", highlightAtomList = atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None, fitImage=False, options=None)
-    return img
+    img = Draw.MolToFile(m,
+                         f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
+                         highlightAtoms=atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None,
+                         fitImage=False, options=draw_opt)
+    return None
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     """
