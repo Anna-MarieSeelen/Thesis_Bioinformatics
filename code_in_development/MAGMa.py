@@ -36,6 +36,11 @@ from rdkit.Chem import Draw
 from rdkit.Chem.Draw.MolDrawing import DrawingOptions
 from matplotlib.colors import ColorConverter
 from rdkit.Chem.Draw.MolDrawing import MolDrawing
+import argparse
+import cairosvg
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem.Draw import DrawingOptions
 
 #functions
 
@@ -295,9 +300,14 @@ def loss2smiles(molblock, atomlist):
         if atom in atoms:
             emol.RemoveAtom(atom)
     frag = emol.GetMol()
+    neutral_loss_bond_list=frag.GetBonds()
+    neutral_loss_bond_list = [str(atom) for atom in neutral_loss_bond_list]
+    neutral_loss_bond_list = ", ".join(neutral_loss_bond_list)
+    print(neutral_loss_bond_list)
     neutral_loss_atom_list=mol.GetSubstructMatch(frag)
     neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
     neutral_loss_atom_list=", ".join(neutral_loss_atom_list)
+    print(neutral_loss_atom_list)
     return neutral_loss_atom_list, Chem.MolToSmiles(frag)
 
 def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file, identifier, motif) -> list:
@@ -388,17 +398,25 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     return list_with_annotated_features
 
 def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, identifier, motif):
+    DrawingOptions.atomLabelFontSize = 55
+    DrawingOptions.dotsPerAngstrom = 100
+    DrawingOptions.bondLineWidth = 3.0
+    DrawingOptions.colorBonds = False
     atoms = [int(a) for a in atom_list.split(',')]
-    draw_opt = DrawingOptions()
-    draw_opt.colorBonds=False
-    draw_opt.atomLabelFontSize=40
-    mol=MolDrawing(drawingOptions=draw_opt)
-    m = Chem.MolFromSmiles(precursor_smiles)
-    mol.AddMol=(m)
-    img = Draw.MolToFile(mol,
-                         f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
-                         highlightAtoms=atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None,
-                         fitImage=False, highlightColor=ColorConverter().to_rgb("grey"), options=draw_opt)
+
+    mol = Chem.MolFromSmiles(precursor_smiles)
+    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png", highlightAtoms=atoms, highlightColor=ColorConverter().to_rgb("grey"))
+    Draw.MolToFile(mol, "temp.svg")
+    cairosvg.svg2png(url='./temp.svg', write_to=f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}_from_svg.png")
+
+    # draw_opt = DrawingOptions()
+    # draw_opt.atomLabelFontSize=40
+    # m = Chem.MolFromSmiles(precursor_smiles)
+    # mol=MolDrawing(canvas=drawingOptions=draw_opt).AddMol(m)
+    # img = Draw.MolToFile(mol,
+    #                      f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
+    #                      highlightAtoms=atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None,
+    #                      fitImage=False, highlightColor=ColorConverter().to_rgb("grey"), options=draw_opt)
     return None
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
