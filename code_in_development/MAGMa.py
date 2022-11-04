@@ -34,6 +34,8 @@ import pandas as pd
 import numpy as np
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw.MolDrawing import DrawingOptions
+from matplotlib.colors import ColorConverter
+from rdkit.Chem.Draw.MolDrawing import MolDrawing
 
 #functions
 
@@ -386,15 +388,17 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     return list_with_annotated_features
 
 def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, identifier, motif):
+    atoms = [int(a) for a in atom_list.split(',')]
     draw_opt = DrawingOptions()
     draw_opt.colorBonds=False
     draw_opt.atomLabelFontSize=40
-    atoms = [int(a) for a in atom_list.split(',')]
+    mol=MolDrawing(drawingOptions=draw_opt)
     m = Chem.MolFromSmiles(precursor_smiles)
-    img = Draw.MolToFile(m,
+    mol.AddMol=(m)
+    img = Draw.MolToFile(mol,
                          f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
                          highlightAtoms=atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None,
-                         fitImage=False, options=draw_opt)
+                         fitImage=False, highlightColor=ColorConverter().to_rgb("grey"), options=draw_opt)
     return None
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
@@ -565,6 +569,7 @@ def main():
                         if list_with_annotated_features is not None:
                             # step 9: adds the new annotations for the features from the spectrum file in the database
                             amount_of_annotated_spectra+=1
+                            print(f"annotation: {list_with_annotated_features}, motif: {motif}, identifier:{spectrum_id}")
                             df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, motif)
                         else:
                             print("none of the features could be annotated")
