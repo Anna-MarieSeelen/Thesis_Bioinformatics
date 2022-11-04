@@ -22,6 +22,14 @@ import re
 import os
 import pandas as pd
 import sys, os
+from matchms import Scores, Spectrum
+import json
+from typing import List
+import numpy
+from pandas import json_normalize
+import time
+from matchms.filtering import select_by_relative_intensity
+from matchms.exporting import save_as_mgf
 
 # functions
 def parse_input(mgf_file: str) -> dict:
@@ -55,6 +63,52 @@ def parse_input(mgf_file: str) -> dict:
             dict_with_mgf_spectra[key] = mgf_spectrum_record
     return dict_with_mgf_spectra
 
+def make_json_mgf_file(pickle_file, path_to_store_json_file, path_to_store_mgf_file):
+    # if os.path.exists(path_to_store_json_file):
+    #      print(os.path.abspath(path_to_store_json_file))
+    obj = pd.read_pickle(pickle_file)
+    spectrum_list=[]
+    for spectrum in obj:
+        select_by_relative_intensity(spectrum, intensity_from=0.1)
+        spectrum_list.append(spectrum)
+    save_as_json(spectrum_list,path_to_store_json_file)
+    save_as_mgf(spectrum_list, path_to_store_mgf_file)
+    return None
+
+def save_as_json(spectrums: List[Spectrum], filename: str):
+    """Save spectrum(s) as json file.
+    :py:attr:`~matchms.Spectrum.losses` of spectrum will not be saved.
+    Arguments:
+    ----------
+    spectrums:
+        Expected input are match.Spectrum.Spectrum() objects.
+    filename:
+        Provide filename to save spectrum(s).
+    """
+    if not isinstance(spectrums, list):
+        # Assume that input was single Spectrum
+        spectrums = [spectrums]
+
+    # Write to json file
+    with open(filename, 'w') as fout:
+        fout.write("[")
+        for i, spectrum in enumerate(spectrums):
+            spec = spectrum.clone()
+            peaks_list = str(numpy.vstack((spec.peaks.mz, spec.peaks.intensities)).T.tolist())
+
+            # Convert matchms.Spectrum() into dictionaries
+            spectrum_dict = {key: spec.metadata[key] for key in spec.metadata}
+            spectrum_dict["spectrum_id"] = spectrum_dict["spectrumid"]
+            del spectrum_dict["spectrumid"]
+            spectrum_dict["peaks_json"] = peaks_list
+            spectrum_dict["Precursor_MZ"] = spectrum_dict["precursor_mz"]
+            del spectrum_dict["precursor_mz"]
+
+            json.dump(spectrum_dict, fout)
+            if i < len(spectrums) - 1:
+                fout.write(",")
+        fout.write("]")
+
 def parse_line_with_motif_and_query(line: str) -> tuple:
     """
     Takes a line in a tab separated file and separates it into motif, feature list and massql query
@@ -68,6 +122,20 @@ def parse_line_with_motif_and_query(line: str) -> tuple:
         splitted_line) == 3, "Expected a file with lines with tabs seperating motif, feature_list and massql query"
     motif, features, massql_query = splitted_line
     return motif,features,massql_query
+
+def read_json(json_file):
+    """
+    :param json_file:
+    :return:
+    """
+    with open(json_file, 'r') as f:
+        dict=json.load(f)
+    df=json_normalize(dict)
+    print(df.columns)
+    df.set_index("spectrum_id",inplace=True, drop=True)
+    #print(df.loc["CCMSLIB00004678842"])
+    #print(df.loc["CCMSLIB00000072521", "peaks_json"])
+    return df
 
 class Suppress:
     """
@@ -118,6 +186,19 @@ def search_motif_with_massql(massql_query: str, path_to_json_file: str) -> pd.Da
         df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
         return df_massql_res
 
+def new_dataframe(df_massql_matches,df_json):
+    """
+    Makes a dataframe with scan precmz smiles and
+    :return:
+    """
+    # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
+    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles"]],left_index=True, right_index=True)
+    # for some matches there are no smiles so remove those from the dataframe
+    df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
+    df.drop(df.index[df['Smiles'] == ' '], inplace=True)
+    print(df)
+    return df
+
 def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_to_store_spectrum_files: str,
                                        dict_with_mgf_spectra: dict) -> None:
     """
@@ -164,12 +245,16 @@ def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_
 
 def main():
     """Main function of this module"""
+    before_script = time.perf_counter()
     path_to_file_with_motifs = argv[1]
     path_to_json_file = argv[2]
     path_to_store_spectrum_files = argv[3]
-    path_to_mgf_file = argv[4]
+    path_to_store_mgf_file = argv[4]
+    path_to_store_json_file=argv[5]
     # step 1: parse the mgf file with spectra and put into dictionary with spectrum id's as keys.
-    dict_with_mgf_spectra=parse_input(path_to_mgf_file)
+    make_json_mgf_file(path_to_json_file, path_to_store_json_file, path_to_store_mgf_file)
+    dict_with_mgf_spectra=parse_input(path_to_store_mgf_file)
+    df_json=read_json(path_to_store_json_file)
     # step 2: parse the lines in the file where all the selected motifs and their corresponding massql queries are
     # listed.
     with open(path_to_file_with_motifs, "r") as lines_motif_file:
@@ -180,9 +265,13 @@ def main():
             motif, features, massql_query=parse_line_with_motif_and_query(line)
             # step 4: search for spectra with the motif in json file with MassQL
             df_massql_matches=search_motif_with_massql(massql_query, path_to_json_file)
+            df_massql_matches_with_smiles=new_dataframe(df_massql_matches, df_json)
+
             # step 5: make a file with all the mgf formatted spectra for every identified match for a motif
-            make_mgf_file_for_spectra(motif, df_massql_matches, path_to_store_spectrum_files,
+            make_mgf_file_for_spectra(motif, df_massql_matches_with_smiles, path_to_store_spectrum_files,
                                                                        dict_with_mgf_spectra)
+    after_script = time.perf_counter()
+    print("how long the total script took {0}".format(after_script - before_script))
 
 if __name__ == "__main__":
     main()
