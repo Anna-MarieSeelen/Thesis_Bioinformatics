@@ -301,14 +301,15 @@ def loss2smiles(molblock, atomlist):
             emol.RemoveAtom(atom)
     frag = emol.GetMol()
     neutral_loss_bond_list=frag.GetBonds()
-    neutral_loss_bond_list = [str(atom) for atom in neutral_loss_bond_list]
+    neutral_loss_bond_list=[str(x.GetIdx()) for x in neutral_loss_bond_list]
+    #neutral_loss_bond_list = [str(atom) for atom in neutral_loss_bond_list]
     neutral_loss_bond_list = ", ".join(neutral_loss_bond_list)
     print(neutral_loss_bond_list)
     neutral_loss_atom_list=mol.GetSubstructMatch(frag)
     neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
     neutral_loss_atom_list=", ".join(neutral_loss_atom_list)
     print(neutral_loss_atom_list)
-    return neutral_loss_atom_list, Chem.MolToSmiles(frag)
+    return neutral_loss_atom_list, neutral_loss_bond_list, Chem.MolToSmiles(frag)
 
 def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file, identifier, motif) -> list:
     """
@@ -345,13 +346,13 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                     atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
                     print(np.arange(lower_bound, upper_bound + 0.01, 0.01))
                     print(float(rounded_loss))
-                    neutral_loss_atom_list, smiles_neutral_loss=loss2smiles(molblock, atomlist)
+                    neutral_loss_atom_list, neutral_loss_bond_list, smiles_neutral_loss=loss2smiles(molblock, atomlist)
                     print(neutral_loss_atom_list)
                     # if the smiles of the neutral_loss could be found with the loss2smiles function
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
-                        vis_substructure_in_precursor_mol(precursor_smiles, neutral_loss_atom_list, identifier, motif)
+                        vis_substructure_in_precursor_mol(precursor_smiles, neutral_loss_atom_list, neutral_loss_bond_list, identifier, motif)
                         # sometimes the molecular weight cannot be calculated if the loss is from a cyclic molecule
                         # because some atoms will be lowercase, but the molecule will not be aromatic.
                         try:
@@ -397,15 +398,16 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
     print(f"list with annotated features {list_with_annotated_features}")
     return list_with_annotated_features
 
-def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, identifier, motif):
+def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, neutral_loss_bond_list, identifier, motif):
     DrawingOptions.atomLabelFontSize = 55
     DrawingOptions.dotsPerAngstrom = 100
     DrawingOptions.bondLineWidth = 3.0
     DrawingOptions.colorBonds = False
     atoms = [int(a) for a in atom_list.split(',')]
+    bonds= [int(a) for a in neutral_loss_bond_list.split(',')]
 
     mol = Chem.MolFromSmiles(precursor_smiles)
-    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png", highlightAtoms=atoms, highlightColor=ColorConverter().to_rgb("grey"))
+    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png", highlightAtoms=atoms, highlightBonds=bonds, highlightColor=ColorConverter().to_rgb('grey'))
     Draw.MolToFile(mol, "temp.svg")
     cairosvg.svg2png(url='./temp.svg', write_to=f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}_from_svg.png")
 
