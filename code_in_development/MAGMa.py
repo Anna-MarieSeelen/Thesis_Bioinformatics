@@ -40,9 +40,10 @@ import argparse
 import cairosvg
 from rdkit import Chem
 from rdkit.Chem import Draw
-from rdkit.Chem.Draw import DrawingOptions
+from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
 
-#functions
+
+# functions
 
 def parse_input(mgf_file: str) -> dict:
     """Parses mgf into strings, where each string is a spectrum and stores those in dict with the spectrum_id as key.
@@ -52,28 +53,29 @@ def parse_input(mgf_file: str) -> dict:
     compound
     """
 
-    lines_mgf_file=open(mgf_file)
+    lines_mgf_file = open(mgf_file)
     spectrum_record_bool = False
-    mgf_spectrum_records=[]
+    mgf_spectrum_records = []
     mgf_spectrum_record = ""
     for line in lines_mgf_file:
         if line.startswith("BEGIN IONS"):
-            spectrum_record_bool=True
+            spectrum_record_bool = True
         if spectrum_record_bool:
-            mgf_spectrum_record+=line
+            mgf_spectrum_record += line
         if line.startswith("END IONS"):
             mgf_spectrum_records.append(mgf_spectrum_record)
             spectrum_record_bool = False
-            mgf_spectrum_record=""
+            mgf_spectrum_record = ""
 
-    dict_with_mgf_spectra={}
+    dict_with_mgf_spectra = {}
     for mgf_spectrum_record in mgf_spectrum_records:
-        mgf_spectrum_record=mgf_spectrum_record.strip()
+        mgf_spectrum_record = mgf_spectrum_record.strip()
         # look for the spectrumid in the string and use it as a key for the dict
         key = re.search(r'SPECTRUMID=(.*)', mgf_spectrum_record).group(1)
         if key is not None:
             dict_with_mgf_spectra[key] = mgf_spectrum_record
     return dict_with_mgf_spectra
+
 
 def construct_path_to_db(identifier, path_to_store_results_db: str) -> tuple:
     # generate a good database name with the spectrum id in it.
@@ -81,10 +83,11 @@ def construct_path_to_db(identifier, path_to_store_results_db: str) -> tuple:
     # if you try to annotate something in an existing database it will go wrong, so if the database exists do not
     # annotate it again.
     if os.path.exists(file_path_results_db):
-        #assert False, "The results db for this spectrum already exists, remove it"
-        return "exists",  file_path_results_db
+        # assert False, "The results db for this spectrum already exists, remove it"
+        return "exists", file_path_results_db
     else:
         return "new", file_path_results_db
+
 
 def make_mgf_txt_file_for_spectrum(spectrum_id, spectrum_record_mgf, path_to_store_spectrum_files: str) -> str:
     """
@@ -104,12 +107,13 @@ def make_mgf_txt_file_for_spectrum(spectrum_id, spectrum_record_mgf, path_to_sto
     # write the mgf spectrum saved in the dict only to a text file if the text file doesn't exist already, if the text
     # file does exist it is assumed to be the right text file in the right formatting
     if os.path.exists(path_to_spectrum_file):
-         return os.path.abspath(path_to_spectrum_file)
+        return os.path.abspath(path_to_spectrum_file)
     else:
         spectrum_file = open(path_to_spectrum_file, "w")
         spectrum_file.write(spectrum_record_mgf)
         spectrum_file.close()
         return os.path.abspath(path_to_spectrum_file)
+
 
 def initialize_db_to_save_results(path_to_results_db) -> None:
     """
@@ -122,16 +126,17 @@ def initialize_db_to_save_results(path_to_results_db) -> None:
 
     cmd = f'magma init_db {path_to_results_db}'
     try:
-        e = subprocess.check_call(cmd, shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
+        e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     # For some reason the text that MAGMa returns on the command line is seen as an error so include this line to keep
     # script from stopping.
     except subprocess.CalledProcessError:
         pass
     return None
 
+
 def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: str,
-                                             abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01,
-                                             spectrum_file_type='mgf', ionisation=1) -> None:
+                         abs_intensity_thres=1000, mz_precision_ppm=80, mz_precision_abs=0.01,
+                         spectrum_file_type='mgf', ionisation=1) -> None:
     """
     Adds the spectrum to be annotated in the sqlite results database using the MAGMa CL read_ms_data function.
 
@@ -149,8 +154,9 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     :return: None
     """
     cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} -a {abs_intensity_thres} -p {mz_precision_ppm} -q {mz_precision_abs} {path_to_spectrum_file} {path_to_results_db_file}'
-    e = subprocess.check_call(cmd, shell=True,stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
+    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return None
+
 
 def add_structure_to_db(path_to_results_db_file: str, smiles: str) -> None:
     """
@@ -162,11 +168,12 @@ def add_structure_to_db(path_to_results_db_file: str, smiles: str) -> None:
     :return: None
     """
     cmd = f"""magma add_structures -t smiles '{smiles}' {path_to_results_db_file}"""
-    e = subprocess.check_call(cmd, shell=True,stdout = subprocess.DEVNULL, stderr = subprocess.STDOUT)
+    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return None
 
+
 def annotate_spectrum_with_MAGMa(path_to_results_db_file: str,
-                                     max_num_break_bonds=10, ncpus=1) -> None:
+                                 max_num_break_bonds=10, ncpus=1) -> None:
     """
     Annotates generated fragments using MAGMa CL annotate function, which uses the precursor smiles.
 
@@ -179,6 +186,7 @@ def annotate_spectrum_with_MAGMa(path_to_results_db_file: str,
     cmd = f"magma annotate -b {max_num_break_bonds} -n {ncpus} {path_to_results_db_file}"
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     return None
+
 
 def fetch_fragments_and_annotations(path_to_results_db_file: str) -> list:
     """
@@ -194,9 +202,10 @@ def fetch_fragments_and_annotations(path_to_results_db_file: str) -> list:
         f"""SELECT mz,smiles FROM fragments"""
     cur = conn.cursor()
     cur.execute(sqlite_command)
-    list_with_fragments_and_smiles=cur.fetchall()
+    list_with_fragments_and_smiles = cur.fetchall()
     print(f"list with frag and smiles {list_with_fragments_and_smiles}")
     return list_with_fragments_and_smiles
+
 
 def parse_line_with_motif_and_query(line: str) -> tuple:
     """
@@ -208,9 +217,10 @@ def parse_line_with_motif_and_query(line: str) -> tuple:
     assert len(
         splitted_line) == 3, "Expected a file with lines with tabs separating motif, feature_list and massql query"
     motif, features, massql_query = splitted_line
-    return motif,features,massql_query
+    return motif, features, massql_query
 
-def look_for_features(features_list:str) -> list:
+
+def look_for_features(features_list: str) -> list:
     """
     Returns the list of features that make up the motif that are according to MassQL present in the spectrum file.
 
@@ -228,6 +238,7 @@ def look_for_features(features_list:str) -> list:
     print(f"list features{list_of_features}")
     return list_of_features
 
+
 def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     """
     Makes a list of the Da of the losses between the parent mass and the annotated fragments
@@ -237,11 +248,11 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
     :return: a list with parent mass at position zero and after that the Da (Decimal) of the losses between the parent
     mass and the annotated fragments
     """
-    list_with_losses=[]
-    for index,fragment in enumerate(list_with_fragments_and_smiles):
-        if index !=0:
-            precusor_mz, precusor_smiles=list_with_fragments_and_smiles[0]
-            fragment_mz, fragment_smiles=fragment
+    list_with_losses = []
+    for index, fragment in enumerate(list_with_fragments_and_smiles):
+        if index != 0:
+            precusor_mz, precusor_smiles = list_with_fragments_and_smiles[0]
+            fragment_mz, fragment_smiles = fragment
             calculated_loss = Decimal(precusor_mz - fragment_mz).quantize(Decimal('.01'),
                                                                           rounding=ROUND_DOWN)
             list_with_losses.append(calculated_loss)
@@ -250,6 +261,7 @@ def make_list_of_losses(list_with_fragments_and_smiles: list) -> list:
             list_with_losses.append(precusor_mz)
     print(f"list with losses {list_with_losses}")
     return list_with_losses
+
 
 def get_mol_block(path_to_results_db_file: str):
     """
@@ -263,10 +275,11 @@ def get_mol_block(path_to_results_db_file: str):
         f"""SELECT mol FROM molecules"""
     cur = conn.cursor()
     cur.execute(sqlite_command)
-    molblock=cur.fetchall()
+    molblock = cur.fetchall()
     # The atom list is in a list of tuples
-    molblock=molblock[0][0]
+    molblock = molblock[0][0]
     return molblock
+
 
 def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     """
@@ -284,8 +297,30 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     cur.execute(sqlite_command)
     atom_list = cur.fetchall()
     # The atom list is in a list of tuples
-    atom_list=atom_list[0][0]
+    atom_list = atom_list[0][0]
     return atom_list
+
+
+def get_bond_list(atom_list, precursor_smiles, fragment_smiles):
+    # creating a bond list for visualization
+    frag = Chem.MolFromSmarts(fragment_smiles)
+    mol = Chem.MolFromSmiles(precursor_smiles)
+
+    # creating an atom list for visualization
+    atom_list = [int(a) for a in atom_list.split(',')]
+
+    # creating a bond list for visualization
+    bond_list = []
+    for bond in frag.GetBonds():
+        aid1 = atom_list[bond.GetBeginAtomIdx()]
+        aid2 = atom_list[bond.GetEndAtomIdx()]
+        if mol.GetBondBetweenAtoms(aid1, aid2) != None:
+            bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
+
+    bond_list = [str(atom) for atom in bond_list]
+    bond_list = ", ".join(bond_list)
+    return bond_list
+
 
 def loss2smiles(molblock, atomlist):
     """
@@ -293,25 +328,36 @@ def loss2smiles(molblock, atomlist):
     Create smiles of the loss(es)
     from molblock and list of fragment atoms
     """
+    # getting the neutral loss in mol object form
     atoms = [int(a) for a in atomlist.split(',')]
     mol = Chem.MolFromMolBlock(molblock)
     emol = Chem.EditableMol(mol)
     for atom in reversed(range(mol.GetNumAtoms())):
         if atom in atoms:
             emol.RemoveAtom(atom)
-    frag = emol.GetMol()
-    neutral_loss_bond_list=frag.GetBonds()
-    neutral_loss_bond_list=[str(x.GetIdx()) for x in neutral_loss_bond_list]
-    #neutral_loss_bond_list = [str(atom) for atom in neutral_loss_bond_list]
-    neutral_loss_bond_list = ", ".join(neutral_loss_bond_list)
-    print(neutral_loss_bond_list)
-    neutral_loss_atom_list=mol.GetSubstructMatch(frag)
-    neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
-    neutral_loss_atom_list=", ".join(neutral_loss_atom_list)
-    print(neutral_loss_atom_list)
-    return neutral_loss_atom_list, neutral_loss_bond_list, Chem.MolToSmiles(frag)
+    neutral_loss = emol.GetMol()
 
-def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: list, path_to_results_db_file, identifier, motif) -> list:
+    # creating an atom list for visualization
+    neutral_loss_atom_list = list(mol.GetSubstructMatch(neutral_loss))
+
+    # creating a bond list for visualization
+    neutral_loss_bond_list = []
+    for bond in neutral_loss.GetBonds():
+        aid1 = neutral_loss_atom_list[bond.GetBeginAtomIdx()]
+        aid2 = neutral_loss_atom_list[bond.GetEndAtomIdx()]
+        neutral_loss_bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
+
+    # putting the atom list and the bond list in the right format
+    neutral_loss_bond_list = [str(atom) for atom in neutral_loss_bond_list]
+    neutral_loss_bond_list = ", ".join(neutral_loss_bond_list)
+    neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
+    neutral_loss_atom_list = ", ".join(neutral_loss_atom_list)
+
+    return neutral_loss_atom_list, neutral_loss_bond_list, Chem.MolToSmiles(neutral_loss)
+
+
+def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: list, path_to_results_db_file, identifier,
+                      motif) -> list:
     """
     Makes a list of lists of features of the mass2motif that are annotated by MAGMa
 
@@ -331,41 +377,43 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
         # if the feature in the motif is a loss
         if re.search(r'loss', feature) != None:
             # make a list of losses from the list_with_fragments_and_smiles from MAGMa
-            list_of_losses=make_list_of_losses(list_with_fragments_and_smiles)
+            list_of_losses = make_list_of_losses(list_with_fragments_and_smiles)
             # and for every loss in this list of losses, try to find a match to the loss of the feature
-            for index,rounded_loss in enumerate(list_of_losses):
+            for index, rounded_loss in enumerate(list_of_losses):
                 # match the feature to the fragment/neutral loss on 2 decimals, rounded up or down.
-                lower_bound=float(re.search(r'\_(.*\..{2}).*', feature).group(1))-0.01
-                upper_bound=round(float(re.search(r'\_(.*)', feature).group(1)), 2)+0.01
-                if float(rounded_loss) in np.arange(lower_bound, upper_bound+0.01, 0.01):
+                lower_bound = float(re.search(r'\_(.*\..{2}).*', feature).group(1)) - 0.01
+                upper_bound = round(float(re.search(r'\_(.*)', feature).group(1)), 2) + 0.01
+                if float(rounded_loss) in np.arange(lower_bound, upper_bound + 0.01, 0.01):
                     # then retrieve the corresponding fragment string and the parent string belonging to the loss
                     precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
                     print(precursor_smiles)
-                    fragment_mz, fragment_smiles= list_with_fragments_and_smiles[index]
-                    molblock=get_mol_block(path_to_results_db_file)
-                    atomlist=get_atom_list(path_to_results_db_file, float(fragment_mz))
+                    fragment_mz, fragment_smiles = list_with_fragments_and_smiles[index]
+                    molblock = get_mol_block(path_to_results_db_file)
+                    atomlist = get_atom_list(path_to_results_db_file, float(fragment_mz))
                     print(np.arange(lower_bound, upper_bound + 0.01, 0.01))
                     print(float(rounded_loss))
-                    neutral_loss_atom_list, neutral_loss_bond_list, smiles_neutral_loss=loss2smiles(molblock, atomlist)
+                    neutral_loss_atom_list, neutral_loss_bond_list, smiles_neutral_loss = loss2smiles(molblock,
+                                                                                                      atomlist)
                     print(neutral_loss_atom_list)
                     # if the smiles of the neutral_loss could be found with the loss2smiles function
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
-                        vis_substructure_in_precursor_mol(precursor_smiles, neutral_loss_atom_list, neutral_loss_bond_list, identifier, motif)
+                        vis_substructure_in_precursor_mol(precursor_smiles, neutral_loss_atom_list,
+                                                          neutral_loss_bond_list, identifier, motif)
                         # sometimes the molecular weight cannot be calculated if the loss is from a cyclic molecule
                         # because some atoms will be lowercase, but the molecule will not be aromatic.
                         try:
-                            mol_weight_from_smiles=MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
+                            mol_weight_from_smiles = MolWt(Chem.MolFromSmiles(f'{smiles_neutral_loss}'))
                             print(mol_weight_from_smiles)
                         # if the molecular weight cannot be calculated convert all the lowercase letters to uppercase,
                         # because then you will get a molecule that is not aromatic and does not have aromatic atoms
                         except:
-                            all_uppercase_smiles=smiles_neutral_loss.upper()
+                            all_uppercase_smiles = smiles_neutral_loss.upper()
                             mol_weight_from_smiles = MolWt(Chem.MolFromSmiles(f'{all_uppercase_smiles}'))
 
                         rounded_mol_weight_from_smiles = Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
-                                                                                                      rounding=ROUND_DOWN)
+                                                                                                  rounding=ROUND_DOWN)
                         print(rounded_mol_weight_from_smiles)
                         if rounded_mol_weight_from_smiles == float(re.search(r'\_(.*\..{1}).*', feature).group(1)):
                             count = 1
@@ -382,43 +430,34 @@ def search_for_smiles(list_of_features: list,list_with_fragments_and_smiles: lis
                 print(fragment)
                 fragment_mz, fragment_smiles = fragment
                 rounded_fragment = Decimal(fragment_mz).quantize(Decimal('.01'),
-                                                                          rounding=ROUND_DOWN)
+                                                                 rounding=ROUND_DOWN)
                 lower_bound = float(re.search(r'\_(.*\..{2}).*', feature).group(1)) - 0.01
                 upper_bound = round(float(re.search(r'\_(.*)', feature).group(1)), 2) + 0.01
-                print(np.arange(lower_bound, upper_bound+0.01, 0.01))
+                print(np.arange(lower_bound, upper_bound + 0.01, 0.01))
                 print(float(rounded_fragment))
-                if float(rounded_fragment) in np.arange(lower_bound, upper_bound+0.01, 0.01):
+                if float(rounded_fragment) in np.arange(lower_bound, upper_bound + 0.01, 0.01):
                     atomlist = get_atom_list(path_to_results_db_file, float(fragment_mz))
                     precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
-                    vis_substructure_in_precursor_mol(precursor_smiles, atomlist, identifier, motif)
+                    if fragment_smiles != None:
+                        bond_list = get_bond_list(atomlist, precursor_smiles, fragment_smiles)
+                        vis_substructure_in_precursor_mol(precursor_smiles, atomlist, bond_list, identifier, motif)
                     print(precursor_smiles)
-                    count=1
-                    list_with_annotated_features.append([feature,fragment_smiles, count])
+                    count = 1
+                    list_with_annotated_features.append([feature, fragment_smiles, count])
                     print([feature, fragment_smiles, count])
     print(f"list with annotated features {list_with_annotated_features}")
     return list_with_annotated_features
 
-def vis_substructure_in_precursor_mol(precursor_smiles,atom_list, neutral_loss_bond_list, identifier, motif):
-    DrawingOptions.atomLabelFontSize = 55
-    DrawingOptions.dotsPerAngstrom = 100
-    DrawingOptions.bondLineWidth = 3.0
-    DrawingOptions.colorBonds = False
+
+def vis_substructure_in_precursor_mol(precursor_smiles, atom_list, bond_list, identifier, motif):
+    opts = MolDrawOptions()
+    opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
     atoms = [int(a) for a in atom_list.split(',')]
-    bonds= [int(a) for a in neutral_loss_bond_list.split(',')]
+    bonds = [int(a) for a in bond_list.split(',')]
 
     mol = Chem.MolFromSmiles(precursor_smiles)
-    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png", highlightAtoms=atoms, highlightBonds=bonds, highlightColor=ColorConverter().to_rgb('grey'))
-    Draw.MolToFile(mol, "temp.svg")
-    cairosvg.svg2png(url='./temp.svg', write_to=f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}_from_svg.png")
-
-    # draw_opt = DrawingOptions()
-    # draw_opt.atomLabelFontSize=40
-    # m = Chem.MolFromSmiles(precursor_smiles)
-    # mol=MolDrawing(canvas=drawingOptions=draw_opt).AddMol(m)
-    # img = Draw.MolToFile(mol,
-    #                      f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
-    #                      highlightAtoms=atoms, size=(300, 300), kekulize=True, wedgeBonds=True, imageType=None,
-    #                      fitImage=False, highlightColor=ColorConverter().to_rgb("grey"), options=draw_opt)
+    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
+                   highlightAtoms=atoms, highlightBonds=bonds, highlightColor=[0,0,0], options=opts)
     return None
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
@@ -430,21 +469,22 @@ def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
     :return: tuple with the filepath of the output file and a dataframe with motifs and features
     """
     # This function should be executed one time and then you just continue adding stuff to dataframe
-    path,filename = os.path.split(path_to_txt_file_with_motif_and_frag)
+    path, filename = os.path.split(path_to_txt_file_with_motif_and_frag)
     file_path = Path(rf"{path}/motif_features_annotated.txt")
     if os.path.exists(file_path):
         assert False, f"The output file: {file_path} exists, remove it"
     shutil.copyfile(path_to_txt_file_with_motif_and_frag, file_path)
-    df_with_motifs=pd.read_csv(file_path, sep="\t", engine='python', header=None)
-    df_with_motifs.columns=["motif_name", "features", "massql_query"]
-    df_with_motifs=df_with_motifs.set_index(["motif_name"])
+    df_with_motifs = pd.read_csv(file_path, sep="\t", engine='python', header=None)
+    df_with_motifs.columns = ["motif_name", "features", "massql_query"]
+    df_with_motifs = df_with_motifs.set_index(["motif_name"])
     del df_with_motifs["massql_query"]
     # add a column where a list of lists of feature, annotation and count can go
     df_with_motifs["LoL_feature_annotation_counts"] = ""
     return os.path.abspath(file_path), df_with_motifs
 
+
 def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_motifs: pd.DataFrame,
-                                    current_motif: str) -> pd.DataFrame:
+                                current_motif: str) -> pd.DataFrame:
     """
     Writes the obtained list of annotations for each feature to a dataframe.
 
@@ -460,12 +500,12 @@ def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_moti
     increased if the same feature and annotated was already present in the lists of lists
     """
     for feature in list_with_annotated_features:
-        cell=df_with_motifs.at[current_motif,"LoL_feature_annotation_counts"]
+        cell = df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]
         print("cell before")
         print(cell)
         # if there are already annotations in the cell see if they are similar to the current annotation
-        if cell!="":
-            list_of_features_in_df=[list_with_feature[0] for list_with_feature in cell]
+        if cell != "":
+            list_of_features_in_df = [list_with_feature[0] for list_with_feature in cell]
             if feature[0] not in list_of_features_in_df:
                 cell.append(feature)
             else:
@@ -484,10 +524,11 @@ def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_moti
 
         # if there are no annotations in the cell just add the list containing the feature, annotation and count.
         else:
-            df_with_motifs.at[current_motif,"LoL_feature_annotation_counts"] = [(feature),]
+            df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"] = [(feature), ]
         print("cell after")
         print(cell)
     return df_with_motifs
+
 
 def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -> str:
     """Outputs a tab delimited file with the selected motifs, their features and the smiles annotations
@@ -505,19 +546,20 @@ def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -
     output_file = open(file_path, "w")
     for index, row in updated_df_with_motifs.iterrows():
         output_file.write("{0}    {1}    {2}".format(index, updated_df_with_motifs.at[index, "features"],
-                                                               updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]))
+                                                     updated_df_with_motifs.at[index, "LoL_feature_annotation_counts"]))
         output_file.write("\n")
     output_file.close()
     return os.path.abspath(file_path)
 
+
 def main():
-    #main function of the script
+    # main function of the script
     # this script is made to return the smiles corresponding to the features of a motif of one spectrum_file_from_massql
-    #step 0: parse input
-    before_script=time.perf_counter()
-    path_to_store_spectrum_files=argv[1]
-    path_to_store_results_db=argv[2]
-    path_to_txt_file_with_motif_and_frag=argv[3]
+    # step 0: parse input
+    before_script = time.perf_counter()
+    path_to_store_spectrum_files = argv[1]
+    path_to_store_results_db = argv[2]
+    path_to_txt_file_with_motif_and_frag = argv[3]
     # step 1: make a dataframe to put the annotations in for the features (so the output)
     file_path, df_with_motifs = make_output_file(path_to_txt_file_with_motif_and_frag)
     with open(path_to_txt_file_with_motif_and_frag, "r") as lines_motif_file:
@@ -528,11 +570,12 @@ def main():
             motif, features, massql_query = parse_line_with_motif_and_query(line)
             for file in os.listdir(path_to_store_spectrum_files):
                 if re.search(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
-                    amount_of_annotated_spectra=0
+                    amount_of_annotated_spectra = 0
                     dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/{file}")
                     for spectrum_id in dict_with_mgf_spectra.keys():
                         print(spectrum_id)
-                        new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id, path_to_store_results_db)
+                        new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id,
+                                                                                      path_to_store_results_db)
                         if new_or_exists == "new":
                             pre_work = time.perf_counter()
                             print("all the prework {0}".format(pre_work - before_script))
@@ -579,7 +622,8 @@ def main():
                         # step 8: look for matches in the two lists so you end up with a list with only smiles for the features of the
                         # current motif
                         before_smiles = time.perf_counter()
-                        list_with_annotated_features = search_for_smiles(list_of_features, list_with_fragments_and_smiles,
+                        list_with_annotated_features = search_for_smiles(list_of_features,
+                                                                         list_with_fragments_and_smiles,
                                                                          path_to_results_db_file, spectrum_id, motif)
                         after_smiles = time.perf_counter()
                         print("got the smiles within {0}".format(after_smiles - before_smiles))
@@ -588,9 +632,11 @@ def main():
                         # not 1 side group.
                         if list_with_annotated_features is not None:
                             # step 9: adds the new annotations for the features from the spectrum file in the database
-                            amount_of_annotated_spectra+=1
-                            print(f"annotation: {list_with_annotated_features}, motif: {motif}, identifier:{spectrum_id}")
-                            df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs, motif)
+                            amount_of_annotated_spectra += 1
+                            print(
+                                f"annotation: {list_with_annotated_features}, motif: {motif}, identifier:{spectrum_id}")
+                            df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs,
+                                                                         motif)
                         else:
                             print("none of the features could be annotated")
                         print("one spectrum done")
@@ -601,8 +647,9 @@ def main():
                     print(f"amount of spectra that had an annotation for {motif} is {amount_of_annotated_spectra}")
     # step 10: writes the dataframe to a tab-delimited file
     write_output_to_file(df_with_motifs, file_path)
-    after_script=time.perf_counter()
+    after_script = time.perf_counter()
     print("how long the total script took {0}".format(after_script - before_script))
+
 
 if __name__ == "__main__":
     main()
