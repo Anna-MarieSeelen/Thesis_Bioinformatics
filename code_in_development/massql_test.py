@@ -65,22 +65,18 @@ def parse_input(mgf_file: str) -> dict:
 
 def make_json_mgf_file(pickle_file, path_to_store_json_file, path_to_store_mgf_file):
     if os.path.exists(path_to_store_json_file) and os.path.exists(path_to_store_mgf_file):
-        return None
+        return path_to_store_json_file, path_to_store_mgf_file
           #assert False, f"path to json file {path_to_store_json_file} exists, remove it!"
-    if os.path.exists(path_to_store_mgf_file):
-        return None
           #assert False, f"path to json file {path_to_store_mgf_file} exists, remove it!"
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
-        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.1)
+        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.8)
         spectrum_list.append(spectrum)
     #there is some weird error that save_as_json gives so run it with supress
-    with Suppress(suppress_stderr=True, suppress_stdout=True):
-        save_as_json(spectrum_list,path_to_store_json_file)
-    with Suppress(suppress_stderr=True, suppress_stdout=True):
-        save_as_mgf(spectrum_list, path_to_store_mgf_file)
-    return None
+    save_as_json(spectrum_list,path_to_store_json_file)
+    save_as_mgf(spectrum_list, path_to_store_mgf_file)
+    return path_to_store_json_file, path_to_store_mgf_file
 
 def save_as_json(spectrums: List[Spectrum], filename: str):
     """Save spectrum(s) as json file.
@@ -143,7 +139,8 @@ def read_json(json_file):
     print(df.columns)
     df.set_index("spectrum_id",inplace=True, drop=True)
     #print(df.loc["CCMSLIB00004678842"])
-    #print(df.loc["CCMSLIB00000072521", "peaks_json"])
+    print(df.loc["CCMSLIB00000072521", "peaks_json"])
+    print(df)
     return df
 
 class Suppress:
@@ -192,6 +189,7 @@ def search_motif_with_massql(massql_query: str, path_to_json_file: str) -> pd.Da
     if not df_massql_res.empty:
         df_massql_res.rename(columns={'scan': 'spectrum_id'}, inplace=True)
         df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
+        print(df_massql_res)
         return df_massql_res
 
 def new_dataframe(df_massql_matches,df_json, motif):
@@ -205,6 +203,7 @@ def new_dataframe(df_massql_matches,df_json, motif):
     df.drop(df.index[df['smiles'] == 'N/A'], inplace=True)
     df.drop(df.index[df['smiles'] == ' '], inplace=True)
     # remove this later:
+    print(df)
     count=len(df)
     df.to_csv(f"/lustre/BIF/nobackup/seele006/Files_with_Mass_QL_matches/{motif}_amount_of_matches_{count}", sep='\t', encoding='utf-8')
     return df
@@ -262,7 +261,7 @@ def main():
     path_to_store_mgf_file = argv[4]
     path_to_store_json_file=argv[5]
     # step 1: parse the mgf file with spectra and put into dictionary with spectrum id's as keys.
-    make_json_mgf_file(path_to_json_file, path_to_store_json_file, path_to_store_mgf_file)
+    path_to_store_json_file, path_to_store_mgf_file=make_json_mgf_file(path_to_json_file, path_to_store_json_file, path_to_store_mgf_file)
     dict_with_mgf_spectra=parse_input(path_to_store_mgf_file)
     df_json=read_json(path_to_store_json_file)
     # step 2: parse the lines in the file where all the selected motifs and their corresponding massql queries are
@@ -276,7 +275,6 @@ def main():
             # step 4: search for spectra with the motif in json file with MassQL
             df_massql_matches=search_motif_with_massql(massql_query, path_to_store_json_file)
             df_massql_matches_with_smiles=new_dataframe(df_massql_matches, df_json, motif)
-
             # step 5: make a file with all the mgf formatted spectra for every identified match for a motif
             make_mgf_file_for_spectra(motif, df_massql_matches_with_smiles, path_to_store_spectrum_files,
                                                                        dict_with_mgf_spectra)
