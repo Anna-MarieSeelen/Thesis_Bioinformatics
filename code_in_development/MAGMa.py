@@ -154,7 +154,8 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     :return: None
     """
     cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} -a {abs_intensity_thres} -p {mz_precision_ppm} -q {mz_precision_abs} {path_to_spectrum_file} {path_to_results_db_file}'
-    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    #e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    e = subprocess.check_call(cmd, shell=True)
     return None
 
 
@@ -168,7 +169,8 @@ def add_structure_to_db(path_to_results_db_file: str, smiles: str) -> None:
     :return: None
     """
     cmd = f"""magma add_structures -t smiles '{smiles}' {path_to_results_db_file}"""
-    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    e = subprocess.check_call(cmd, shell=True)
+    #e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return None
 
 
@@ -183,8 +185,10 @@ def annotate_spectrum_with_MAGMa(path_to_results_db_file: str,
     :param ncpus: int, number of parallel cpus to use for annotation (default: 1)
     :return: None
     """
-    cmd = f"magma annotate -b {max_num_break_bonds} -n {ncpus} {path_to_results_db_file}"
-    e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+
+    cmd = f"magma annotate -b {max_num_break_bonds} -n {ncpus} -t 3 {path_to_results_db_file}"
+    #e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+    e = subprocess.check_output(cmd, shell=True)
     return None
 
 
@@ -278,6 +282,7 @@ def get_mol_block(path_to_results_db_file: str):
     molblock = cur.fetchall()
     # The atom list is in a list of tuples
     molblock = molblock[0][0]
+    print(molblock)
     return molblock
 
 
@@ -298,6 +303,7 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     atom_list = cur.fetchall()
     # The atom list is in a list of tuples
     atom_list = atom_list[0][0]
+    print(f"this is the atom_list: {atom_list}")
     return atom_list
 
 
@@ -319,6 +325,7 @@ def get_bond_list(atom_list, molblock, fragment_smiles):
 
     bond_list = [str(atom) for atom in bond_list]
     bond_list = ", ".join(bond_list)
+    print(f"this is the bondlist {bond_list}")
     return bond_list
 
 
@@ -453,8 +460,8 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
 def vis_substructure_in_precursor_mol(mol_block, atom_list, bond_list, identifier, motif):
     opts = MolDrawOptions()
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
-    atoms = [int(a) for a in atom_list.split(',')]
-    bonds = [int(a) for a in bond_list.split(',')]
+    atoms = [int(int(a)+1) for a in atom_list.split(',')]
+    bonds = [int(int(a)+1) for a in bond_list.split(',')]
 
     mol = Chem.MolFromMolBlock(mol_block)
     Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
