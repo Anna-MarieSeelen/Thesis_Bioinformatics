@@ -301,10 +301,10 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     return atom_list
 
 
-def get_bond_list(atom_list, precursor_smiles, fragment_smiles):
+def get_bond_list(atom_list, molblock, fragment_smiles):
     # creating a bond list for visualization
     frag = Chem.MolFromSmarts(fragment_smiles)
-    mol = Chem.MolFromSmiles(precursor_smiles)
+    mol = Chem.MolFromMolBlock(molblock)
 
     # creating an atom list for visualization
     atom_list = [int(a) for a in atom_list.split(',')]
@@ -399,7 +399,7 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
                     if smiles_neutral_loss != None:
                         # check if the smiles has the same molecular mass as the loss reported of the feature
                         print(smiles_neutral_loss)
-                        vis_substructure_in_precursor_mol(precursor_smiles, neutral_loss_atom_list,
+                        vis_substructure_in_precursor_mol(molblock, neutral_loss_atom_list,
                                                           neutral_loss_bond_list, identifier, motif)
                         # sometimes the molecular weight cannot be calculated if the loss is from a cyclic molecule
                         # because some atoms will be lowercase, but the molecule will not be aromatic.
@@ -439,8 +439,9 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
                     atomlist = get_atom_list(path_to_results_db_file, float(fragment_mz))
                     precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
                     if fragment_smiles != None:
-                        bond_list = get_bond_list(atomlist, precursor_smiles, fragment_smiles)
-                        vis_substructure_in_precursor_mol(precursor_smiles, atomlist, bond_list, identifier, motif)
+                        molblock = get_mol_block(path_to_results_db_file)
+                        bond_list = get_bond_list(atomlist, molblock, fragment_smiles)
+                        vis_substructure_in_precursor_mol(molblock, atomlist, bond_list, identifier, motif)
                     print(precursor_smiles)
                     count = 1
                     list_with_annotated_features.append([feature, fragment_smiles, count])
@@ -449,13 +450,13 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
     return list_with_annotated_features
 
 
-def vis_substructure_in_precursor_mol(precursor_smiles, atom_list, bond_list, identifier, motif):
+def vis_substructure_in_precursor_mol(mol_block, atom_list, bond_list, identifier, motif):
     opts = MolDrawOptions()
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
     atoms = [int(a) for a in atom_list.split(',')]
     bonds = [int(a) for a in bond_list.split(',')]
 
-    mol = Chem.MolFromSmiles(precursor_smiles)
+    mol = Chem.MolFromMolBlock(mol_block)
     Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
                    highlightAtoms=atoms, highlightBonds=bonds, highlightColor=[0,0,0], options=opts)
     return None
