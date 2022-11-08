@@ -71,7 +71,7 @@ def make_json_mgf_file(pickle_file, path_to_store_json_file, path_to_store_mgf_f
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
-        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.8)
+        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.92)
         spectrum_list.append(spectrum)
     #there is some weird error that save_as_json gives so run it with supress
     save_as_json(spectrum_list,path_to_store_json_file)
@@ -202,7 +202,12 @@ def new_dataframe(df_massql_matches,df_json, motif):
     # for some matches there are no smiles so remove those from the dataframe
     df.drop(df.index[df['smiles'] == 'N/A'], inplace=True)
     df.drop(df.index[df['smiles'] == ' '], inplace=True)
-    # remove this later:
+    df.drop_duplicates('smiles', inplace=True)
+    df.reset_index(inplace=True)
+    df=df.set_index('spectrum_id')
+    # if you have more than 30 non-redundant matches randomly select 30 matches, because otherwise it will take too long
+    if len(df) > 30:
+        df=df.sample(n=30)
     print(df)
     count=len(df)
     df.to_csv(f"/lustre/BIF/nobackup/seele006/Files_with_Mass_QL_matches/{motif}_amount_of_matches_{count}", sep='\t', encoding='utf-8')
@@ -250,7 +255,7 @@ def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_
                 mgf_spectra_file.write(spectrum_record_mgf)
                 mgf_spectra_file.write("\n")
                 mgf_spectra_file.close()
-        return None
+    return None
 
 def main():
     """Main function of this module"""
