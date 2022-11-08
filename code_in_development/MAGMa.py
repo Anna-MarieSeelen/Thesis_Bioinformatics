@@ -41,6 +41,8 @@ import cairosvg
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
+import multiprocessing
+import signal
 
 
 # functions
@@ -185,12 +187,26 @@ def annotate_spectrum_with_MAGMa(path_to_results_db_file: str,
     :param ncpus: int, number of parallel cpus to use for annotation (default: 1)
     :return: None
     """
-
+    time.sleep(180)
     cmd = f"magma annotate -b {max_num_break_bonds} -n {ncpus} -t 3 {path_to_results_db_file}"
     #e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     e = subprocess.check_output(cmd, shell=True)
     return None
 
+class timeout:
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message) #I don't want to raise an error I want to break the loop...
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
 
 def fetch_fragments_and_annotations(path_to_results_db_file: str) -> list:
     """
@@ -460,8 +476,8 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
 def vis_substructure_in_precursor_mol(mol_block, atom_list, bond_list, identifier, motif):
     opts = MolDrawOptions()
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
-    atoms = [int(int(a)+1) for a in atom_list.split(',')]
-    bonds = [int(int(a)+1) for a in bond_list.split(',')]
+    atoms = [int(a) for a in atom_list.split(',')]
+    bonds = [int(a) for a in bond_list.split(',')]
 
     mol = Chem.MolFromMolBlock(mol_block)
     Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
@@ -613,9 +629,10 @@ def main():
                                 return None
                             # step 4: annotate spectrum with MAGMa and store output in results database
                             before_annotate = time.perf_counter()
-                            annotate_spectrum_with_MAGMa(path_to_results_db_file,
-                                                         max_num_break_bonds=10,
-                                                         ncpus=1)
+                            with timeout(seconds=180):
+                                annotate_spectrum_with_MAGMa(path_to_results_db_file,
+                                                             max_num_break_bonds=10,
+                                                             ncpus=1)
                             after_annotate = time.perf_counter()
                             print("annotate spectrum {0}".format(after_annotate - before_annotate))
                         # step 6: get a list of features of the current motif
