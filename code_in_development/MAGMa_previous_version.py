@@ -311,7 +311,8 @@ def get_bond_list(atom_list, molblock, fragment_smiles):
     bonds_in_prec_mol = [(x.GetBeginAtomIdx(), x.GetEndAtomIdx()) for x in mol.GetBonds()]
     for bond in bonds_in_prec_mol:
         atom_1,atom_2=bond
-        if atom_1 and atom_2 in atom_list:
+        #if atom 1 and atom 2 are also both in the atom_list then they are connected to each other in the molecule!
+        if all(x in atom_list for x in [atom_1,atom_2]):
             bond_list.append(mol.GetBondBetweenAtoms(atom_1, atom_2).GetIdx())
 
     # for atom in frag.GetBonds():
@@ -461,7 +462,12 @@ def vis_substructure_in_precursor_mol(mol_block, atom_list, bond_list, identifie
     opts = MolDrawOptions()
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
     atoms = [int(a) for a in atom_list.split(',')]
-    bonds = [int(a) for a in bond_list.split(',')]
+    # if there are no bonds a will be "" and the int(a) will give an error so
+    for a in bond_list.split(','):
+        if a=="":
+            bonds=[]
+        else:
+            bonds = [int(a) for a in bond_list.split(',')]
 
     mol = Chem.MolFromMolBlock(mol_block)
     Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
