@@ -308,19 +308,24 @@ def get_bond_list(atom_list, molblock, fragment_smiles):
 
     # creating a bond list for visualization
     bond_list = []
-    for bond in frag.GetBonds():
-        aid1 = atom_list[bond.GetBeginAtomIdx()]
-        print(aid1)
-        aid2 = atom_list[bond.GetEndAtomIdx()]
-        print(aid2)
-        if mol.GetBondBetweenAtoms(aid1, aid2) != None:
-            bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
-            print(bond_list)
+    bonds_in_prec_mol = [(x.GetBeginAtomIdx(), x.GetEndAtomIdx()) for x in mol.GetBonds()]
+    for bond in bonds_in_prec_mol:
+        atom_1,atom_2=bond
+        if atom_1 and atom_2 in atom_list:
+            bond_list.append(mol.GetBondBetweenAtoms(atom_1, atom_2).GetIdx())
+
+    # for atom in frag.GetBonds():
+    #     aid1 = atom_list[bond.GetBeginAtomIdx()]
+    #     print(aid1)
+    #     aid2 = atom_list[bond.GetEndAtomIdx()]
+    #     print(aid2)
+    #     if mol.GetBondBetweenAtoms(aid1, aid2) != None:
+    #         bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
+    #         print(bond_list)
 
     bond_list = [str(atom) for atom in bond_list]
     bond_list = ", ".join(bond_list)
     return bond_list
-
 
 def loss2smiles(molblock, atomlist):
     """
@@ -604,16 +609,11 @@ def main():
                                                                                    path_to_store_spectrum_files)
                             # step 3: add spectrum to be annotated into the results database
                             before_add_spectrum = time.perf_counter()
-                            with timeout(seconds=120):
-                                try:
-                                    add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
+                            add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
                                                          abs_intensity_thres=1000,
                                                          mz_precision_ppm=80, mz_precision_abs=0.01,
                                                          spectrum_file_type='mgf',
                                                          ionisation=1)
-                                except TimeoutError:
-                                    # os.remove(path_to_results_db_file)
-                                    continue
                             after_add_spectrum = time.perf_counter()
                             print("added the spectrum in {0}".format(after_add_spectrum - before_add_spectrum))
                             if re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1) != None:
@@ -628,9 +628,14 @@ def main():
                                 return None
                             # step 4: annotate spectrum with MAGMa and store output in results database
                             before_annotate = time.perf_counter()
-                            annotate_spectrum_with_MAGMa(path_to_results_db_file,
+                            with timeout(seconds=120):
+                                try:
+                                    annotate_spectrum_with_MAGMa(path_to_results_db_file,
                                                          max_num_break_bonds=10,
                                                          ncpus=1)
+                                except TimeoutError:
+                                    # os.remove(path_to_results_db_file)
+                                    continue
                             after_annotate = time.perf_counter()
                             print("annotate spectrum {0}".format(after_annotate - before_annotate))
                         # step 6: get a list of features of the current motif
