@@ -41,9 +41,6 @@ import cairosvg
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
-import multiprocessing
-import signal
-import sys
 
 
 # functions
@@ -157,8 +154,7 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     :return: None
     """
     cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} -a {abs_intensity_thres} -p {mz_precision_ppm} -q {mz_precision_abs} {path_to_spectrum_file} {path_to_results_db_file}'
-    #e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    e = subprocess.check_call(cmd, shell=True)
+    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return None
 
 
@@ -172,8 +168,7 @@ def add_structure_to_db(path_to_results_db_file: str, smiles: str) -> None:
     :return: None
     """
     cmd = f"""magma add_structures -t smiles '{smiles}' {path_to_results_db_file}"""
-    e = subprocess.check_call(cmd, shell=True)
-    #e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return None
 
 
@@ -190,23 +185,8 @@ def annotate_spectrum_with_MAGMa(path_to_results_db_file: str,
     """
     cmd = f"magma annotate -b {max_num_break_bonds} -n {ncpus} {path_to_results_db_file}"
     e = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-    #e = subprocess.check_output(cmd, shell=True)
     return None
 
-class timeout:
-    def __init__(self, seconds=1, error_message='Timeout'):
-        self.seconds = seconds
-        self.error_message = error_message
-
-    def handle_timeout(self, signum, frame):
-        raise TimeoutError(self.error_message)
-
-    def __enter__(self):
-        signal.signal(signal.SIGALRM, self.handle_timeout)
-        signal.alarm(self.seconds)
-
-    def __exit__(self, type, value, traceback):
-        signal.alarm(0)
 
 def fetch_fragments_and_annotations(path_to_results_db_file: str) -> list:
     """
@@ -298,8 +278,8 @@ def get_mol_block(path_to_results_db_file: str):
     molblock = cur.fetchall()
     # The atom list is in a list of tuples
     molblock = molblock[0][0]
-    print(molblock)
     return molblock
+
 
 def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     """
@@ -318,7 +298,6 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     atom_list = cur.fetchall()
     # The atom list is in a list of tuples
     atom_list = atom_list[0][0]
-    print(f"this is the atom_list: {atom_list}")
     return atom_list
 
 
@@ -340,7 +319,6 @@ def get_bond_list(atom_list, molblock, fragment_smiles):
 
     bond_list = [str(atom) for atom in bond_list]
     bond_list = ", ".join(bond_list)
-    print(f"this is the bondlist {bond_list}")
     return bond_list
 
 
@@ -374,9 +352,6 @@ def loss2smiles(molblock, atomlist):
     neutral_loss_bond_list = ", ".join(neutral_loss_bond_list)
     neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
     neutral_loss_atom_list = ", ".join(neutral_loss_atom_list)
-
-    print(f"this is the neutral loss bond list {neutral_loss_bond_list}")
-    print(f"this is the neutral loss atom list {neutral_loss_atom_list}")
 
     return neutral_loss_atom_list, neutral_loss_bond_list, Chem.MolToSmiles(neutral_loss)
 
@@ -480,10 +455,8 @@ def vis_substructure_in_precursor_mol(mol_block, atom_list, bond_list, identifie
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
     atoms = [int(a) for a in atom_list.split(',')]
     bonds = [int(a) for a in bond_list.split(',')]
-    print(mol_block)
+
     mol = Chem.MolFromMolBlock(mol_block)
-    mol_block2 = Chem.MolToMolBlock(mol)
-    print(mol_block2)
     Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
                    highlightAtoms=atoms, highlightBonds=bonds, highlightColor=[0,0,0], options=opts)
     return None
@@ -629,14 +602,13 @@ def main():
                                 after_add_structure = time.perf_counter()
                                 print("added the structure in {0}".format(after_add_structure - before_add_structure))
                                 os.remove(path_to_spectrum_file)
+                            else:
+                                return None
                             # step 4: annotate spectrum with MAGMa and store output in results database
                             before_annotate = time.perf_counter()
-                            with timeout(seconds=300):
-                                try:
-                                    annotate_spectrum_with_MAGMa(path_to_results_db_file, max_num_break_bonds=10, ncpus=1)
-                                except TimeoutError:
-                                    #os.remove(path_to_results_db_file)
-                                    continue
+                            annotate_spectrum_with_MAGMa(path_to_results_db_file,
+                                                         max_num_break_bonds=10,
+                                                         ncpus=1)
                             after_annotate = time.perf_counter()
                             print("annotate spectrum {0}".format(after_annotate - before_annotate))
                         # step 6: get a list of features of the current motif
