@@ -41,7 +41,7 @@ import cairosvg
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
-
+import signal
 
 # functions
 
@@ -280,7 +280,6 @@ def get_mol_block(path_to_results_db_file: str):
     molblock = molblock[0][0]
     return molblock
 
-
 def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     """
     Retrieves
@@ -300,12 +299,10 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     atom_list = atom_list[0][0]
     return atom_list
 
-
 def get_bond_list(atom_list, molblock, fragment_smiles):
     # creating a bond list for visualization
     frag = Chem.MolFromSmarts(fragment_smiles)
     mol = Chem.MolFromMolBlock(molblock)
-
     # creating an atom list for visualization
     atom_list = [int(a) for a in atom_list.split(',')]
 
@@ -313,9 +310,12 @@ def get_bond_list(atom_list, molblock, fragment_smiles):
     bond_list = []
     for bond in frag.GetBonds():
         aid1 = atom_list[bond.GetBeginAtomIdx()]
+        print(aid1)
         aid2 = atom_list[bond.GetEndAtomIdx()]
+        print(aid2)
         if mol.GetBondBetweenAtoms(aid1, aid2) != None:
             bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
+            print(bond_list)
 
     bond_list = [str(atom) for atom in bond_list]
     bond_list = ", ".join(bond_list)
@@ -344,7 +344,9 @@ def loss2smiles(molblock, atomlist):
     neutral_loss_bond_list = []
     for bond in neutral_loss.GetBonds():
         aid1 = neutral_loss_atom_list[bond.GetBeginAtomIdx()]
+        print(aid1)
         aid2 = neutral_loss_atom_list[bond.GetEndAtomIdx()]
+        print(aid2)
         neutral_loss_bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
 
     # putting the atom list and the bond list in the right format
@@ -552,6 +554,20 @@ def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -
     output_file.close()
     return os.path.abspath(file_path)
 
+class timeout:
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
 
 def main():
     # main function of the script
@@ -588,10 +604,16 @@ def main():
                                                                                    path_to_store_spectrum_files)
                             # step 3: add spectrum to be annotated into the results database
                             before_add_spectrum = time.perf_counter()
-                            add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
-                                                 abs_intensity_thres=1000,
-                                                 mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
-                                                 ionisation=1)
+                            with timeout(seconds=120):
+                                try:
+                                    add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
+                                                         abs_intensity_thres=1000,
+                                                         mz_precision_ppm=80, mz_precision_abs=0.01,
+                                                         spectrum_file_type='mgf',
+                                                         ionisation=1)
+                                except TimeoutError:
+                                    # os.remove(path_to_results_db_file)
+                                    continue
                             after_add_spectrum = time.perf_counter()
                             print("added the spectrum in {0}".format(after_add_spectrum - before_add_spectrum))
                             if re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1) != None:
