@@ -154,7 +154,13 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     :return: None
     """
     cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} -a {abs_intensity_thres} -p {mz_precision_ppm} -q {mz_precision_abs} {path_to_spectrum_file} {path_to_results_db_file}'
-    e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    # sometimes read_ms_data gives a
+    try:
+        e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError:
+        print(f"read_ms data gave an error, so this sqlite lib was not made for {path_to_spectrum_file}")
+        os.remove(path_to_results_db_file)
+        pass
     return None
 
 
@@ -276,7 +282,7 @@ def get_mol_block(path_to_results_db_file: str):
     cur = conn.cursor()
     cur.execute(sqlite_command)
     molblock = cur.fetchall()
-    # The atom list is in a list of tuples
+    # The mol block is in a list of tuples
     molblock = molblock[0][0]
     return molblock
 
@@ -297,14 +303,12 @@ def get_atom_list(path_to_results_db_file: str, mass_of_frag):
     atom_list = cur.fetchall()
     # The atom list is in a list of tuples
     atom_list = atom_list[0][0]
-    return atom_list
+    atoms = [int(a) for a in atom_list.split(',')]
+    return atoms
 
-def get_bond_list(atom_list, molblock, fragment_smiles):
+def get_bond_list(atom_list, molblock):
     # creating a bond list for visualization
-    frag = Chem.MolFromSmarts(fragment_smiles)
     mol = Chem.MolFromMolBlock(molblock)
-    # creating an atom list for visualization
-    atom_list = [int(a) for a in atom_list.split(',')]
 
     # creating a bond list for visualization
     bond_list = []
@@ -314,18 +318,6 @@ def get_bond_list(atom_list, molblock, fragment_smiles):
         #if atom 1 and atom 2 are also both in the atom_list then they are connected to each other in the molecule!
         if all(x in atom_list for x in [atom_1,atom_2]):
             bond_list.append(mol.GetBondBetweenAtoms(atom_1, atom_2).GetIdx())
-
-    # for atom in frag.GetBonds():
-    #     aid1 = atom_list[bond.GetBeginAtomIdx()]
-    #     print(aid1)
-    #     aid2 = atom_list[bond.GetEndAtomIdx()]
-    #     print(aid2)
-    #     if mol.GetBondBetweenAtoms(aid1, aid2) != None:
-    #         bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
-    #         print(bond_list)
-
-    bond_list = [str(atom) for atom in bond_list]
-    bond_list = ", ".join(bond_list)
     return bond_list
 
 def loss2smiles(molblock, atomlist):
@@ -335,32 +327,25 @@ def loss2smiles(molblock, atomlist):
     from molblock and list of fragment atoms
     """
     # getting the neutral loss in mol object form
-    atoms = [int(a) for a in atomlist.split(',')]
     mol = Chem.MolFromMolBlock(molblock)
     emol = Chem.EditableMol(mol)
+    mol_list=list(reversed(range(mol.GetNumAtoms())))
+    print(mol_list)
     for atom in reversed(range(mol.GetNumAtoms())):
-        if atom in atoms:
+        if atom in atomlist:
+            # creating an atom list for visualization
+            mol_list.remove(atom)
             emol.RemoveAtom(atom)
     neutral_loss = emol.GetMol()
-
-    # creating an atom list for visualization
-    neutral_loss_atom_list = list(mol.GetSubstructMatch(neutral_loss))
-
+    neutral_loss_atom_list=mol_list
     # creating a bond list for visualization
     neutral_loss_bond_list = []
-    for bond in neutral_loss.GetBonds():
-        aid1 = neutral_loss_atom_list[bond.GetBeginAtomIdx()]
-        print(aid1)
-        aid2 = neutral_loss_atom_list[bond.GetEndAtomIdx()]
-        print(aid2)
-        neutral_loss_bond_list.append(mol.GetBondBetweenAtoms(aid1, aid2).GetIdx())
-
-    # putting the atom list and the bond list in the right format
-    neutral_loss_bond_list = [str(atom) for atom in neutral_loss_bond_list]
-    neutral_loss_bond_list = ", ".join(neutral_loss_bond_list)
-    neutral_loss_atom_list = [str(atom) for atom in neutral_loss_atom_list]
-    neutral_loss_atom_list = ", ".join(neutral_loss_atom_list)
-
+    bonds_in_prec_mol = [(x.GetBeginAtomIdx(), x.GetEndAtomIdx()) for x in mol.GetBonds()]
+    for bond in bonds_in_prec_mol:
+        atom_1,atom_2=bond
+        #if atom 1 and atom 2 are also both in the atom_list then they are connected to each other in the molecule!
+        if all(x in neutral_loss_atom_list for x in [atom_1,atom_2]):
+            neutral_loss_bond_list.append(mol.GetBondBetweenAtoms(atom_1, atom_2).GetIdx())
     return neutral_loss_atom_list, neutral_loss_bond_list, Chem.MolToSmiles(neutral_loss)
 
 
@@ -448,7 +433,7 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
                     precursor_mz, precursor_smiles = list_with_fragments_and_smiles[0]
                     if fragment_smiles != None:
                         molblock = get_mol_block(path_to_results_db_file)
-                        bond_list = get_bond_list(atomlist, molblock, fragment_smiles)
+                        bond_list = get_bond_list(atomlist, molblock)
                         vis_substructure_in_precursor_mol(molblock, atomlist, bond_list, identifier, motif)
                     print(precursor_smiles)
                     count = 1
@@ -461,17 +446,10 @@ def search_for_smiles(list_of_features: list, list_with_fragments_and_smiles: li
 def vis_substructure_in_precursor_mol(mol_block, atom_list, bond_list, identifier, motif):
     opts = MolDrawOptions()
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
-    atoms = [int(a) for a in atom_list.split(',')]
-    # if there are no bonds a will be "" and the int(a) will give an error so
-    for a in bond_list.split(','):
-        if a=="":
-            bonds=[]
-        else:
-            bonds = [int(a) for a in bond_list.split(',')]
 
     mol = Chem.MolFromMolBlock(mol_block)
     Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MAGMa_illustrations_of_substructures/{identifier}_{motif}.png",
-                   highlightAtoms=atoms, highlightBonds=bonds, highlightColor=[0,0,0], options=opts)
+                   highlightAtoms=atom_list, highlightBonds=bond_list, highlightColor=[0,0,0], options=opts)
     return None
 
 def make_output_file(path_to_txt_file_with_motif_and_frag: str) -> tuple:
@@ -622,7 +600,7 @@ def main():
                                                          ionisation=1)
                             after_add_spectrum = time.perf_counter()
                             print("added the spectrum in {0}".format(after_add_spectrum - before_add_spectrum))
-                            if re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1) != None:
+                            if os.path.exists(path_to_results_db_file):
                                 smiles = re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1)
                                 print(smiles)
                                 before_add_structure = time.perf_counter()
