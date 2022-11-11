@@ -30,6 +30,11 @@ import os
 from matchms.importing import load_from_mgf
 from matchms.filtering import add_losses
 from decimal import *
+import time
+from sys import argv
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
 
 # functions
 def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_in_motif=5) -> pd.DataFrame:
@@ -237,10 +242,13 @@ def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: lis
     #create list with 0 to fill the pandas column for the features for now
     #convert 0 to string, because you get a Value error at the end of the function from pandas otherwise
     empty_list = ["0"]*(len(list_of_selected_motifs))
+    empty_list_1 = ["0"] * (len(list_of_selected_motifs))
     # create pandas dataframe with the motifs that have 2 (default) smiles with prediction probability above 0.7 (default)
-    data={"motif": list_of_selected_motifs, "Fragment+Probability+Ratio+Doc": empty_list}
+    data={"motif": list_of_selected_motifs, "Fragment+Probability+Ratio+Doc": empty_list, "All_Fragment+Probability+Ratio+Doc": empty_list_1}
     df_selected_motif_and_ratio = pd.DataFrame(data)
     df_selected_motif_and_ratio.set_index("motif", inplace=True)
+    # this variable can go soon
+    list_with_all_annotated_documents=[]
     for motif in list_of_selected_motifs:
         # list with all features that the motif contains
         features_list_of_lists_with_counts=[]
@@ -253,6 +261,30 @@ def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: lis
         #sort the list of lists of features from high to low ratio
         features_list_of_lists_with_counts = sorted(features_list_of_lists_with_counts, key=lambda x: x[2],
                                                     reverse=True)
+        df_selected_motif_and_ratio.at[
+            motif, "All_Fragment+Probability+Ratio+Doc"] = features_list_of_lists_with_counts
+        # EXTRA CODE: CAN BE DELETED calculate the ratio of doc that are associated with more than 1 feature within the same motif
+        list_with_all_documents=[]
+        for feature_list in features_list_of_lists_with_counts:
+            doc_list=feature_list[3]
+            for num in doc_list:
+                list_with_all_documents.append(num)
+        for doc in set(list_with_all_documents):
+            list_with_all_annotated_documents.append(doc)
+        set_multiple=set()
+        count_single=0
+        for i in list_with_all_documents:
+            if [doc for doc in list_with_all_documents].count(i) > 1:
+                set_multiple.add(i)
+            else:
+                count_single+=1
+        count_multiple=len(set_multiple)
+        ratio=count_multiple/count_single
+        print(motif)
+        list_with_counts = [count_single, count_multiple, ratio]
+        print(f"count_single, count_multiple, ratio: {list_with_counts}")
+        # END OF EXTRA CODE
+
         #if the highest feature ratio of a motif is below the minimum_ratio (default: 0)
         #the whole motif will be discarded from the dataframe
         if features_list_of_lists_with_counts[0][2] < float(minimum_ratio):
@@ -271,6 +303,12 @@ def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: lis
             else:
                 df_selected_motif_and_ratio.at[
                     motif, "Fragment+Probability+Ratio+Doc"] = features_list_of_lists_with_counts[:1]
+    #can also be removed:
+    documents_in_more_than_1_motif=[]
+    for i in list_with_all_annotated_documents:
+        if [i for i in list_with_all_annotated_documents].count(i) > 1:
+            documents_in_more_than_1_motif.append(i)
+    print(f"documents that are ass with more than 1 motif {documents_in_more_than_1_motif}")
 
     return df_selected_motif_and_ratio
 
@@ -286,9 +324,9 @@ def make_MassQL_search(fragments: list) -> str:
         for string in fragment:
             if type(string)==str:
                 if re.search(r'loss', string) != None:
-                    query+="AND MS2NL = {0}:TOLERANCEMZ={1} ".format(re.search(r'\_(.*)', string).group(1), 0.01)
+                    query+="AND MS2NL = {0}:TOLERANCEMZ={1}:INTENSITYVALUE={2} ".format(re.search(r'\_(.*)', string).group(1), 0.01, 0.8)
                 else:
-                    query+="AND MS2PROD = {0}:TOLERANCEMZ={1} ".format(re.search(r'\_(.*)', string).group(1), 0.01)
+                    query+="AND MS2PROD = {0}:TOLERANCEMZ={1}:INTENSITYVALUE={2} ".format(re.search(r'\_(.*)', string).group(1), 0.01, 0.8)
             else:
                 pass
     return query
@@ -341,6 +379,12 @@ def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame,
                 pdf.multi_cell(200, 5,
                                txt="[[feature, probability, ratio_of_spectra_with_feature, spectra number with feature], [feature, probability, ratio_of_spectra_with_feature, spectra number with feature], etc.] :\n",
                                align='L')
+                pdf.multi_cell(200, 5, txt="{0}\n".format(
+                    df_selected_motif_and_ratio.at[index, "All_Fragment+Probability+Ratio+Doc"]),
+                               align='L')
+                pdf.multi_cell(200, 5,
+                               txt="selected features:\n",
+                               align='L')
                 pdf.multi_cell(200, 5, txt="{0}\n".format(df_selected_motif_and_ratio.at[index, "Fragment+Probability+Ratio+Doc"]),
                                align='L')
                 # https: // www.geeksforgeeks.org / python - sort - list - according - second - element - sublist /
@@ -380,6 +424,8 @@ def make_pdf(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame,
                             # also use the function visualize_mol to print a picture of the structure of the analog
                             # using the smiles that is associated with the spectrum
                             pdf.image(visualize_mol(df_doc_to_smiles.at[cell, "smiles"]))
+                            # cell is spectrum number and the index is the name of the motif
+                            vis_MS2Query_mol(df_doc_to_smiles.at[cell, "smiles"], cell, index)
                             # print the prediction probability of the analog, and the mz of the smiles that is
                             # associated with the spectrum
                             pdf.multi_cell(200, 10, txt="analog m/z:{0}, prediction: {1}\n".format(
@@ -405,10 +451,19 @@ def make_file_with_massql_querries(df_selected_motif_and_ratio: pd.DataFrame) ->
     motif_query_file.close()
     return os.path.abspath(file_path)
 
+def vis_MS2Query_mol(smiles, spectrum_num, motif):
+    opts = MolDrawOptions()
+    opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
+
+    mol = Chem.MolFromSmiles(smiles)
+    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MS2Query_identified_structures/{spectrum_num}_{motif}.png", options=opts)
+    return None
+
 def main() -> None:
     """Main function of this module"""
 
     #step 0: input of script
+    before_script = time.perf_counter()
     path_to_file_with_MS2Query_csv= argv[1]
     path_file_with_MS2LDA_csv = argv[2]
     path_file_with_Motif_fragments_csv = argv[3]
@@ -430,6 +485,8 @@ def main() -> None:
     make_pdf(df_motifs_to_doc,df_doc_to_smiles,df_selected_motif_and_ratio)
     # step 5: make a table with the selected motif and their corresponding massql querries
     print(make_file_with_massql_querries(df_selected_motif_and_ratio))
+    after_script = time.perf_counter()
+    print("how long the total script took {0}".format(after_script - before_script))
 
 if __name__ == "__main__":
     main()
