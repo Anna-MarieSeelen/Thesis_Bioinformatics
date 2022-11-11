@@ -491,36 +491,42 @@ def write_spectrum_output_to_df(list_with_annotated_features: list, df_with_moti
     :return: df_with_motifs, but the list_with_annotated_features have been added to the second column or the counts was
     increased if the same feature and annotated was already present in the lists of lists
     """
+    #cell = df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]
+    print("--------------------------------------------------------------------------------------------")
+    print("cell before")
+    print(df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"])
     for feature in list_with_annotated_features:
-        cell = df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]
-        print("cell before")
-        print(cell)
+        print(f"the amount of annotated features: {len(list_with_annotated_features)}")
         # if there are already annotations in the cell see if they are similar to the current annotation
-        if cell != "":
-            list_of_features_in_df = [list_with_feature[0] for list_with_feature in cell]
+        if df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"] != "":
+            list_of_features_in_df = [list_with_feature[0] for list_with_feature in df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]]
             if feature[0] not in list_of_features_in_df:
-                cell.append(feature)
+                df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"].append(feature)
             else:
-                list_of_smiles_in_df = [list_with_feature[1] for list_with_feature in cell]
+                list_of_smiles_in_df = [list_with_feature[1] for list_with_feature in df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]]
                 if feature[1] not in list_of_smiles_in_df:
-                    cell.append(feature)
+                    df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"].append(feature)
                 else:
-                    for list_with_feature in cell:
+                    for list_with_feature in df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]:
                         if list_with_feature[0] == feature[0]:
                             print(f"this is fragment in df {list_with_feature[0]} and new fragment {feature[0]}")
                             if list_with_feature[1] == feature[1]:
                                 print(
                                     f"this is annotation in df {list_with_feature[1]} and annotation new {feature[1]}")
-                                list_with_feature[2] = int(list_with_feature[2]) + 1
-                                print(f"this is count in df {list_with_feature[2]} and count new {feature[2]}")
+                                print(f"this is the old count in df {list_with_feature[2]}")
+                                print(f"count to be added to the df {feature[2]}")
+                                list_with_feature[2] = int(list_with_feature[2]) + int(feature[2])
+                                print(f"this is the new count in df {list_with_feature[2]}")
 
         # if there are no annotations in the cell just add the list containing the feature, annotation and count.
         else:
-            df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"] = [(feature), ]
-        print("cell after")
-        print(cell)
+            df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"] = [feature, ]
+    df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"]=sorted(df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"], key=lambda x: x[2],
+           reverse=True)
+    print("cell after")
+    print(df_with_motifs.at[current_motif, "LoL_feature_annotation_counts"])
+    print("--------------------------------------------------------------------------------------------")
     return df_with_motifs
-
 
 def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -> str:
     """Outputs a tab delimited file with the selected motifs, their features and the smiles annotations
@@ -575,7 +581,9 @@ def main():
             # step 3: retrieve the motif and the massql query one by one
             motif, features, massql_query = parse_line_with_motif_and_query(line)
             for file in os.listdir(path_to_store_spectrum_files):
-                if re.search(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
+                if re.findall(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
+                    if len(re.findall(fr'mgf_spectra_for_{motif}_from_massql.txt', file)) > 1:
+                        assert False, f"more than 1 file with mgf style spectra for {motif} in dir {path_to_store_spectrum_files}"
                     amount_of_annotated_spectra = 0
                     dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/{file}")
                     for spectrum_id in dict_with_mgf_spectra.keys():
