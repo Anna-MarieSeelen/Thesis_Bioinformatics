@@ -37,12 +37,12 @@ from rdkit.Chem import Draw
 from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
 
 # functions
-def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_in_motif=5) -> pd.DataFrame:
+def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_in_motif=4) -> pd.DataFrame:
     """
     Takes a csv file from MS2LDA.org and rearranges the motifs and documents and returns them in a pandas dataframe.
 
     :param path_file_with_MS2LDA_csv: str, path to location of file with csv from MS2LDA containing motifs and documents
-    :param threshold_spectra_in_motif: int, default=5, minimum amount of spectra associated with a motif for the motif
+    :param threshold_spectra_in_motif: int, default=4, minimum amount of spectra associated with a motif for the motif
      to be included in the output dataframe
     :return: pandas dataframe with the motifs as index and each associated document in a separate column. The last
     column is a list of lists of the associated document, the probability and the overlap score.
@@ -70,6 +70,7 @@ def convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv: str, threshold_spectra_
     # solution from:
     # https://stackoverflow.com/questions/44663903/pandas-split-column-of-lists-of-unequal-length-into-multiple-columns
     df_motifs_and_doc_and_list = pd.concat([df_motif_and_doc, df_motif_and_list], axis=1)
+    print(df_motifs_and_doc_and_list)
     return df_motifs_and_doc_and_list
 
 def convert_ms2query_to_df(path_to_file_with_MS2Query_csv: str, threshold_ms2query_pred=0.7) -> pd.DataFrame:
@@ -97,6 +98,7 @@ def convert_ms2query_to_df(path_to_file_with_MS2Query_csv: str, threshold_ms2que
         "query_spectrum_nr")
     df_all_spectra_and_smiles_above_threshold = pd.concat([df_all_spectra_and_mz, df_analog_above_threshold_and_info],
                                                           axis=1).fillna('')
+    print(df_all_spectra_and_smiles_above_threshold)
     return df_all_spectra_and_smiles_above_threshold
 
 def convert_fragments_in_motif_to_df(path_file_with_MS2LDA_csv_fragments: str) -> pd.DataFrame:
@@ -124,10 +126,11 @@ def convert_fragments_in_motif_to_df(path_file_with_MS2LDA_csv_fragments: str) -
         '').rename(columns=f)
     # https://stackoverflow.com/questions/45107523/pandas-convert-list-of-lists-to-multiple-columns
     df_new=pd.concat([df_motif_and_sep_fragments, df_motif_list_of_lists_feature], axis=1)
+    print(df_new)
     return df_new
 
 def make_list_of_selected_motifs(df_motifs_to_doc: pd.DataFrame, df_doc_to_smiles: pd.DataFrame, df_motifs_to_frag: pd.DataFrame,
-                 threshold_amount_analogs=2) -> list:
+                 threshold_amount_analogs=1) -> list:
     """
     Generates a list containing motifs for which at least 2 with a probability > x (default=0.7) analogues were matched.
 
@@ -147,16 +150,21 @@ def make_list_of_selected_motifs(df_motifs_to_doc: pd.DataFrame, df_doc_to_smile
     for index, row in df_motifs_to_doc.iterrows():
         amount_of_smiles = 0
         # calculating the amount of smiles with a probability > 0.7 (default) associated with each motif
-        for cell in row:
-            if cell in df_doc_to_smiles.index.values.tolist():
-                if df_doc_to_smiles.at[cell, "smiles"] != "":
-                    amount_of_smiles += 1
-        # selection of Mass2Motifs based on the amount of smiles with a probability > 0.7 (default).
-        # At least 2 or more Smiles are needed for a mass2motif to be added to the list so that the validation can happen
-        if amount_of_smiles >= threshold_amount_analogs:
-            # if the mass2motif is in the list of indexes of df_motifs_to_frag then look for the column with fragments
-            if index in df_motifs_to_frag.index.values.tolist():
-                list_of_selected_motifs.append(index)
+        if index.startswith("motif"):
+            for cell in row:
+                if cell in df_doc_to_smiles.index.values.tolist():
+                    if df_doc_to_smiles.at[cell, "smiles"] != "":
+                        amount_of_smiles += 1
+                print(f" the amount of reliable smiles: {amount_of_smiles}")
+            # selection of Mass2Motifs based on the amount of smiles with a probability > 0.7 (default).
+            # At least 2 or more Smiles are needed for a mass2motif to be added to the list so that the validation can happen
+            if amount_of_smiles >= threshold_amount_analogs:
+                # if the mass2motif is in the list of indexes of df_motifs_to_frag then look for the column with fragments
+                if index in df_motifs_to_frag.index.values.tolist():
+                    list_of_selected_motifs.append(index)
+        else:
+            list_of_selected_motifs.append(index)
+    print(list_of_selected_motifs)
     return list_of_selected_motifs
 
 def calculate_doc_ratio_for_feature(feature: list, motif: str, features_list_of_lists_with_counts: list, mgf_file: str,
@@ -216,6 +224,7 @@ def calculate_doc_ratio_for_feature(feature: list, motif: str, features_list_of_
     feature.append(ratio_of_ass_doc_with_feature)
     feature.append(documents_that_contain_feature)
     features_list_of_lists_with_counts.append(feature)
+    print(features_list_of_lists_with_counts)
     return features_list_of_lists_with_counts
 
 def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: list, df_motifs_to_frag: pd.DataFrame,
@@ -279,7 +288,10 @@ def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: lis
             else:
                 count_single+=1
         count_multiple=len(set_multiple)
-        ratio=count_multiple/count_single
+        try:
+            ratio=count_multiple/count_single
+        except ZeroDivisionError:
+            ratio=f"count multiple only: {count_multiple}"
         print(motif)
         list_with_counts = [count_single, count_multiple, ratio]
         print(f"count_single, count_multiple, ratio: {list_with_counts}")
@@ -309,7 +321,7 @@ def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: lis
         if [i for i in list_with_all_annotated_documents].count(i) > 1:
             documents_in_more_than_1_motif.append(i)
     print(f"documents that are ass with more than 1 motif {documents_in_more_than_1_motif}")
-
+    print(df_selected_motif_and_ratio)
     return df_selected_motif_and_ratio
 
 def make_MassQL_search(fragments: list) -> str:
@@ -469,14 +481,14 @@ def main() -> None:
     path_file_with_Motif_fragments_csv = argv[3]
     path_to_gnps_output_mgf_file = argv[4]
     # step 1: rearrange MS2LDA file with mass2motifs and documents in dataframe
-    df_motifs_to_doc=convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv, threshold_spectra_in_motif=5)
+    df_motifs_to_doc=convert_Mass2Motifs_to_df(path_file_with_MS2LDA_csv, threshold_spectra_in_motif=4)
     #step 2: rearrange MS2Query file with documents and smiles of analogs in dataframe
     df_doc_to_smiles=convert_ms2query_to_df(path_to_file_with_MS2Query_csv, threshold_ms2query_pred=0.7)
     # step 3: rearrange MS2LDA fragment file with mass2motifs and fragments in dataframe
     df_motifs_to_frag=convert_fragments_in_motif_to_df(path_file_with_Motif_fragments_csv)
     # step 4: make a list of the selected motifs with at least x (default 2) reliable MS2Query results per motif
     list_of_selected_motifs = make_list_of_selected_motifs(df_motifs_to_doc, df_doc_to_smiles, df_motifs_to_frag,
-                                                           threshold_amount_analogs=2)
+                                                           threshold_amount_analogs=1)
     # step 5: calculate the amount of associated documents for each feature relative to the total amount of
     # documents associated with the respective motif (so calculate the ratio)
     df_selected_motif_and_ratio=select_motifs_based_on_doc_ratio(path_to_gnps_output_mgf_file, list_of_selected_motifs, df_motifs_to_frag,
