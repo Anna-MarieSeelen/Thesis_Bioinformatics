@@ -71,7 +71,7 @@ def make_json_mgf_file(pickle_file, path_to_store_json_file, path_to_store_mgf_f
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
-        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.92)
+        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.8)
         spectrum_list.append(spectrum)
     #there is some weird error that save_as_json gives so run it with supress
     save_as_json(spectrum_list,path_to_store_json_file)
@@ -185,6 +185,7 @@ def search_motif_with_massql(massql_query: str, path_to_json_file: str) -> pd.Da
     # msql_engine only takes json files
     # the class Suppress suppresses the output to the command line that the msql_engine is giving through a print
     # function.
+    print(path_to_json_file)
     df_massql_res=msql_engine.process_query(massql_query,path_to_json_file)
     if not df_massql_res.empty:
         df_massql_res.rename(columns={'scan': 'spectrum_id'}, inplace=True)
