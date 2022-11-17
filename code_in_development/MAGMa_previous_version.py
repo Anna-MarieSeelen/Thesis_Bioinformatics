@@ -153,7 +153,7 @@ def add_spectrum_into_db(path_to_results_db_file: str, path_to_spectrum_file: st
     :param ionisation: {1, -1}, indicates the ionisation mode, -1 is negative, 1 is positive (default: 1)
     :return: None
     """
-    cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} -a {abs_intensity_thres} -p {mz_precision_ppm} -q {mz_precision_abs} {path_to_spectrum_file} {path_to_results_db_file}'
+    cmd = f'magma read_ms_data -f {spectrum_file_type} -i {ionisation} {path_to_spectrum_file} {path_to_results_db_file}'
     # sometimes read_ms_data gives a
     try:
         e = subprocess.check_call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
