@@ -34,7 +34,7 @@ def parse_input(mgf_file: str) -> dict:
         key = str(re.search(r'SCANS=(.*)', mgf_spectrum_record).group(1))
         if key is not None:
             dict_with_mgf_spectra[key] = mgf_spectrum_record
-    print(dict_with_mgf_spectra["19"])
+    print(dict_with_mgf_spectra["216"])
     return dict_with_mgf_spectra
 
 def count_empty_spectra(dict_with_mgf_spectra):
