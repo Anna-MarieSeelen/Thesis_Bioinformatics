@@ -592,88 +592,93 @@ def main():
     file_path, df_with_motifs = make_output_file(path_to_txt_file_with_motif_and_frag)
     with open(path_to_txt_file_with_motif_and_frag, "r") as lines_motif_file:
         for line in lines_motif_file:
+            print(line)
             line = line.strip()
             line = line.replace('\n', '')
             # step 3: retrieve the motif and the massql query one by one
             motif, features, massql_query = parse_line_with_motif_and_query(line)
-            for file in os.listdir(path_to_store_spectrum_files):
-                if re.search(fr'mgf_spectra_for_{motif}_from_massql.txt', file) != None:
-                    amount_of_annotated_spectra = 0
-                    dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/{file}")
-                    for spectrum_id in dict_with_mgf_spectra.keys():
-                        print(spectrum_id)
-                        new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id,
-                                                                                      path_to_store_results_db)
-                        if new_or_exists == "new":
-                            pre_work = time.perf_counter()
-                            print("all the prework {0}".format(pre_work - before_script))
-                            initialize_db_to_save_results(path_to_results_db_file)
-                            after_init = time.perf_counter()
-                            print("init database + all the prework {0}".format(after_init - pre_work))
-                            mgf_spectrum_record = dict_with_mgf_spectra[spectrum_id]
-                            path_to_spectrum_file = make_mgf_txt_file_for_spectrum(spectrum_id, mgf_spectrum_record,
-                                                                                   path_to_store_spectrum_files)
-                            # step 3: add spectrum to be annotated into the results database
-                            before_add_spectrum = time.perf_counter()
-                            add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
-                                                 abs_intensity_thres=1000,
-                                                 mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
-                                                 ionisation=1)
-                            after_add_spectrum = time.perf_counter()
-                            print("added the spectrum in {0}".format(after_add_spectrum - before_add_spectrum))
-                            if re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1) != None:
-                                smiles = re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1)
-                                print(smiles)
-                                before_add_structure = time.perf_counter()
-                                add_structure_to_db(path_to_results_db_file, smiles)
-                                after_add_structure = time.perf_counter()
-                                print("added the structure in {0}".format(after_add_structure - before_add_structure))
-                                os.remove(path_to_spectrum_file)
-                            # step 4: annotate spectrum with MAGMa and store output in results database
-                            before_annotate = time.perf_counter()
-                            with timeout(seconds=300):
-                                try:
-                                    annotate_spectrum_with_MAGMa(path_to_results_db_file, max_num_break_bonds=10, ncpus=1)
-                                except TimeoutError:
-                                    #os.remove(path_to_results_db_file)
-                                    continue
-                            after_annotate = time.perf_counter()
-                            print("annotate spectrum {0}".format(after_annotate - before_annotate))
-                        # step 6: get a list of features of the current motif
-                        after_annotate = time.perf_counter()
-                        list_of_features = look_for_features(features)
-                        after_look_for_motif = time.perf_counter()
-                        print("look for features {0}".format(after_look_for_motif - after_annotate))
-                        # step 7: get a list of the annotated fragments and smiles of the matched compound
-                        list_with_fragments_and_smiles = fetch_fragments_and_annotations(path_to_results_db_file)
-                        after_get_fragments = time.perf_counter()
-                        print("fetch fragments {0}".format(after_get_fragments - after_look_for_motif))
-                        # step 8: look for matches in the two lists so you end up with a list with only smiles for the features of the
-                        # current motif
-                        before_smiles = time.perf_counter()
-                        list_with_annotated_features = search_for_smiles(list_of_features,
-                                                                         list_with_fragments_and_smiles,
-                                                                         path_to_results_db_file, spectrum_id, motif)
-                        after_smiles = time.perf_counter()
-                        print("got the smiles within {0}".format(after_smiles - before_smiles))
-                        # The list with annotated features could be None if the features of the motif are not in the list of
-                        # annotated features by MAGMa or if for example the neutral loss is splintered across the molecule, and
-                        # not 1 side group.
-                        if list_with_annotated_features is not None:
-                            # step 9: adds the new annotations for the features from the spectrum file in the database
-                            amount_of_annotated_spectra += 1
-                            print(
-                                f"annotation: {list_with_annotated_features}, motif: {motif}, identifier:{spectrum_id}")
-                            df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs,
-                                                                         motif)
-                        else:
-                            print("none of the features could be annotated")
-                        print("one spectrum done")
+            print(motif)
+            assert os.path.exists(fr'{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt'), f"there is no mgf file with spectra to annotate for {motif}"
+            print(fr'{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt')
+            amount_of_annotated_spectra = 0
+            print(motif)
+            dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt")
+            print((f"{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt"))
+            for spectrum_id in dict_with_mgf_spectra.keys():
+                print(spectrum_id)
+                new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id,
+                                                                              path_to_store_results_db)
+                if new_or_exists == "new":
+                    pre_work = time.perf_counter()
+                    print("all the prework {0}".format(pre_work - before_script))
+                    initialize_db_to_save_results(path_to_results_db_file)
+                    after_init = time.perf_counter()
+                    print("init database + all the prework {0}".format(after_init - pre_work))
+                    mgf_spectrum_record = dict_with_mgf_spectra[spectrum_id]
+                    path_to_spectrum_file = make_mgf_txt_file_for_spectrum(spectrum_id, mgf_spectrum_record,
+                                                                           path_to_store_spectrum_files)
+                    # step 3: add spectrum to be annotated into the results database
+                    before_add_spectrum = time.perf_counter()
+                    add_spectrum_into_db(path_to_results_db_file, path_to_spectrum_file,
+                                         abs_intensity_thres=1000,
+                                         mz_precision_ppm=80, mz_precision_abs=0.01, spectrum_file_type='mgf',
+                                         ionisation=1)
+                    after_add_spectrum = time.perf_counter()
+                    print("added the spectrum in {0}".format(after_add_spectrum - before_add_spectrum))
+                    if re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1) != None:
+                        smiles = re.search(r'SMILES=(.*)', mgf_spectrum_record).group(1)
+                        print(smiles)
+                        before_add_structure = time.perf_counter()
+                        add_structure_to_db(path_to_results_db_file, smiles)
+                        after_add_structure = time.perf_counter()
+                        print("added the structure in {0}".format(after_add_structure - before_add_structure))
+                        os.remove(path_to_spectrum_file)
+                    # step 4: annotate spectrum with MAGMa and store output in results database
+                    before_annotate = time.perf_counter()
+                    with timeout(seconds=300):
+                        try:
+                            annotate_spectrum_with_MAGMa(path_to_results_db_file, max_num_break_bonds=10, ncpus=1)
+                        except TimeoutError:
+                            # os.remove(path_to_results_db_file)
+                            continue
+                    after_annotate = time.perf_counter()
+                    print("annotate spectrum {0}".format(after_annotate - before_annotate))
+                # step 6: get a list of features of the current motif
+                after_annotate = time.perf_counter()
+                list_of_features = look_for_features(features)
+                after_look_for_motif = time.perf_counter()
+                print("look for features {0}".format(after_look_for_motif - after_annotate))
+                # step 7: get a list of the annotated fragments and smiles of the matched compound
+                list_with_fragments_and_smiles = fetch_fragments_and_annotations(path_to_results_db_file)
+                after_get_fragments = time.perf_counter()
+                print("fetch fragments {0}".format(after_get_fragments - after_look_for_motif))
+                # step 8: look for matches in the two lists so you end up with a list with only smiles for the features of the
+                # current motif
+                before_smiles = time.perf_counter()
+                list_with_annotated_features = search_for_smiles(list_of_features,
+                                                                 list_with_fragments_and_smiles,
+                                                                 path_to_results_db_file, spectrum_id, motif)
+                after_smiles = time.perf_counter()
+                print("got the smiles within {0}".format(after_smiles - before_smiles))
+                # The list with annotated features could be None if the features of the motif are not in the list of
+                # annotated features by MAGMa or if for example the neutral loss is splintered across the molecule, and
+                # not 1 side group.
+                if list_with_annotated_features is not None:
+                    # step 9: adds the new annotations for the features from the spectrum file in the database
+                    amount_of_annotated_spectra += 1
                     print(
-                        f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
-                    print(
-                        f"the identifiers of spectra found in MassQL for motif {motif}: {dict_with_mgf_spectra.keys()}")
-                    print(f"amount of spectra that had an annotation for {motif} is {amount_of_annotated_spectra}")
+                        f"annotation: {list_with_annotated_features}, motif: {motif}, identifier:{spectrum_id}")
+                    df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs,
+                                                                 motif)
+                else:
+                    print("none of the features could be annotated")
+                print("one spectrum done")
+            print(
+                f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
+            print(
+                f"the identifiers of spectra found in MassQL for motif {motif}: {dict_with_mgf_spectra.keys()}")
+            print(f"amount of spectra that had an annotation for {motif} is {amount_of_annotated_spectra}")
+
     # step 10: writes the dataframe to a tab-delimited file
     write_output_to_file(df_with_motifs, file_path)
     after_script = time.perf_counter()
