@@ -317,13 +317,13 @@ def select_motifs_based_on_doc_ratio(mgf_file: str, list_of_selected_motifs: lis
                 df_selected_motif_and_ratio.at[
                     motif, "Fragment+Probability+Ratio+Doc"] = features_list_of_lists_with_counts[:1]
     #can also be removed:
-    for index, row in df_selected_motif_and_ratio.iterrows():
-        list_of_lists = row['Fragment+Probability+Ratio+Doc']
-        print(list_of_lists)
-        for feature in df_selected_motif_and_ratio.at[index, list_of_lists]:
-            for i in feature[3]:
-                documents_with_potential_partial_annotation = documents_with_potential_partial_annotation.add(i)
-    print(f"documents with a potential partial annotation: {documents_with_potential_partial_annotation}")
+    # for index, row in df_selected_motif_and_ratio.iterrows():
+    #     list_of_lists = row['Fragment+Probability+Ratio+Doc']
+    #     print(list_of_lists)
+    #     for feature in df_selected_motif_and_ratio.at[index, list_of_lists]:
+    #         for i in feature[3]:
+    #             documents_with_potential_partial_annotation = documents_with_potential_partial_annotation.add(i)
+    # print(f"documents with a potential partial annotation: {documents_with_potential_partial_annotation}")
     documents_in_more_than_1_motif=[]
     for i in list_with_all_annotated_documents:
         if [i for i in list_with_all_annotated_documents].count(i) > 1:
