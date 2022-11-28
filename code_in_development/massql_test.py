@@ -71,7 +71,7 @@ def make_json_mgf_file(pickle_file, path_to_store_json_file, path_to_store_mgf_f
     obj = pd.read_pickle(pickle_file)
     spectrum_list=[]
     for spectrum in obj:
-        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.8)
+        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.1)
         spectrum_list.append(spectrum)
     #there is some weird error that save_as_json gives so run it with supress
     save_as_json(spectrum_list,path_to_store_json_file)
