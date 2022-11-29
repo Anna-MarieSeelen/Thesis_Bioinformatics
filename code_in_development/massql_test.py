@@ -64,8 +64,8 @@ def parse_input(mgf_file: str) -> dict:
     return dict_with_mgf_spectra
 
 def make_json_mgf_file(pickle_file, path_to_store_json_file, path_to_store_mgf_file):
-    # if os.path.exists(path_to_store_json_file) and os.path.exists(path_to_store_mgf_file):
-    #     return path_to_store_json_file, path_to_store_mgf_file
+    if os.path.exists(path_to_store_json_file) and os.path.exists(path_to_store_mgf_file):
+         return path_to_store_json_file, path_to_store_mgf_file
           #assert False, f"path to json file {path_to_store_json_file} exists, remove it!"
           #assert False, f"path to json file {path_to_store_mgf_file} exists, remove it!"
     obj = pd.read_pickle(pickle_file)
