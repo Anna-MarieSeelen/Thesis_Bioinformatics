@@ -6,8 +6,10 @@ from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
 def vis_MS2Query_mol(smiles, spectrum_num, motif, substructure_smiles):
     # creating an atom list for visualization
     mol = Chem.MolFromSmiles(smiles)
+    substructure_smiles=Chem.MolFromSmiles(smiles)
     mol_block = Chem.MolToMolBlock(mol)
-    atom_list = list(mol.GetSubstructMatch(substructure_smiles))
+    #atom_list = list(mol.GetSubstructMatch(substructure_smiles))
+    atom_list=[0,1,2,3,4,5,6,7,8,9,18]
     bond_list=get_bond_list(atom_list, mol_block)
 
     opts = MolDrawOptions()
