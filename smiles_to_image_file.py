@@ -34,7 +34,6 @@ def get_bond_list(atom_list, molblock):
 
 
 def main():
-    print("hiiiiiiiii")
     smiles=argv[1]
     motif=argv[2]
     spectrum_num=argv[3]
