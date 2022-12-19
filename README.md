@@ -12,9 +12,15 @@ The blue rectangular blocks represent tools or websites used in the pipeline, an
 
 see https://github.com/iomega/ms2query for installation and run instructions
 
+### Run script
+
+e.g. 
+
 ## Select Mass2Motifs
 
 ### Prepare environment
+
+conda install -c conda-forge rdkit
 
 ### Install tools
 
@@ -26,12 +32,13 @@ e.g. python3 make_pdf_with_smiles.py
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/select_Mass2Motifs/input/consensus_spectra_from_GNPS_classical_molecular_network.mgf 
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/select_Mass2Motifs/output
 
-
 ## MassQL
 
 ### Prepare environment
 
 ### Install tools
+
+https://pypi.org/project/massql/
 
 ### Run script
 
@@ -43,10 +50,11 @@ e.g. python3 massql_test.py
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MassQL/output/json_enzo/GNPS.mgf 
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MassQL/output/json_enzo/GNPS.json
 
-
 ## MAGMa
 
 ### Prepare environment
+
+conda install -c conda-forge rdkit
 
 ### Install tools
 
