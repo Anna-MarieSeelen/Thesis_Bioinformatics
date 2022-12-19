@@ -2,8 +2,8 @@
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
-Description: This script runs MAGMa on one mgf formatted spectrum file and looks for smiles annotations for the m2m_frag_and_or_loss
-of the corresponding mass2motif for which the spectrum file was made using MassQL
+Description: This script runs MAGMa on one mgf formatted spectrum file and looks for smiles annotations for the
+m2m_frag_and_or_loss of the corresponding mass2motif for which the spectrum file was made using MassQL
 Usage: python3 MAGMa.py *path_to_mgf_spectrum_files_from_massql_script* *path_to_store_results_db*
 *path_to_txt_file_with_massql_queries* *path_to_save_png_of_substruc*
 
@@ -113,7 +113,8 @@ def make_mgf_txt_file_for_spectrum(spectrum_id: str, spectrum_record_mgf: str, p
 
 def initialize_db_to_save_results(path_to_results_db: str) -> None:
     """
-    Initializes a sqlite database using the MAGMa CL init_db function to store annotation results from MAGMa for spectrum
+    Initializes a sqlite database using the MAGMa CL init_db function to store annotation results from MAGMa for
+    spectrum
 
     :param path_to_store_results_db: str, path where the output database from MAGMa with the annotations for the
     spectrum should be stored.
@@ -199,7 +200,8 @@ def fetch_fragments_and_annotations(path_to_results_db_file: str) -> list:
 def parse_line_with_motif_and_query(line: str) -> tuple:
     """
     Takes a line in a tab separated file and separates it into motif, m2m_frag_or_loss list and massql query
-    :param line: str, line in a tab separated file containing the motif, list of m2m_frag_and_or_loss and the massql query
+    :param line: str, line in a tab separated file containing the motif, list of m2m_frag_and_or_loss and the massql
+    query
     :return: returns the motif, m2m_frag_or_loss_list and the massql query in a tuple
     """
     splitted_line = line.split("\t")
@@ -210,10 +212,10 @@ def parse_line_with_motif_and_query(line: str) -> tuple:
 
 def rearrange_m2m_frag_and_or_loss(m2m_frag_and_or_loss_list: str) -> list:
     """
-    Returns the list of m2m_frag_and_or_losses that make up the motif that are according to MassQL present in the spectrum file.
+    Returns the list of m2m_frag_and_or_losses that make up the motif that are according to MassQL present in the
+    spectrum file.
 
-    :param m2m_frag_and_or_loss_list: list of the
-    #TODO: what is this?
+    :param m2m_frag_and_or_loss_list: str, list of the m2m_frag_and_or_losses from a txt file
     :return: list of m2m_frag_or_loss belonging to the mass2motif which is according to MassQL present in the spectrum.
     """
     m2m_frag_and_or_loss_list_1 = ast.literal_eval(m2m_frag_and_or_loss_list)
@@ -338,9 +340,9 @@ def loss2smiles(molblock, atomlist):
 
     return neutral_loss_atom_list, neutral_loss_bond_list, Chem.MolToSmiles(neutral_loss)
 
-
-def search_for_smiles(list_of_m2m_frag_and_or_loss: list, list_with_fragments_and_smiles: list, path_to_results_db_file: str, spectrum_id: str,
-                      motif: str, path_to_save_png_of_substruc: str) -> list:
+def search_for_smiles(list_of_m2m_frag_and_or_loss: list, list_with_fragments_and_smiles: list,
+                          path_to_results_db_file: str, spectrum_id: str,
+                          motif: str, path_to_save_png_of_substruc: str) -> list:
     """
     Makes a list of lists of m2m_frag_and_or_loss of the mass2motif that are annotated by MAGMa
 
@@ -395,10 +397,13 @@ def search_for_smiles(list_of_m2m_frag_and_or_loss: list, list_with_fragments_an
 
                         rounded_mol_weight_from_smiles = Decimal(mol_weight_from_smiles).quantize(Decimal('.1'),
                                                                                                   rounding=ROUND_DOWN)
-                        if rounded_mol_weight_from_smiles == float(re.search(r'\_(.*\..{1}).*', m2m_frag_or_loss).group(1)):
+                        if rounded_mol_weight_from_smiles == float(
+                                re.search(r'\_(.*\..{1}).*', m2m_frag_or_loss).group(1)):
                             count = 1
-                            list_with_annotated_m2m_frag_and_or_loss.append([m2m_frag_or_loss, smiles_neutral_loss, count])
-                        # if the mass is not the same as the reported m2m_frag_or_loss then the mass is reported in the output file
+                            list_with_annotated_m2m_frag_and_or_loss.append(
+                                [m2m_frag_or_loss, smiles_neutral_loss, count])
+                        # if the mass is not the same as the reported m2m_frag_or_loss then the mass is reported in
+                        # the output file
                         else:
                             count = 1
                             list_with_annotated_m2m_frag_and_or_loss.append(
@@ -418,18 +423,19 @@ def search_for_smiles(list_of_m2m_frag_and_or_loss: list, list_with_fragments_an
                     if fragment_smiles != None:
                         molblock = get_mol_block(path_to_results_db_file)
                         bond_list = get_bond_list(atomlist, molblock)
-                        vis_substructure_in_precursor_mol(path_to_save_png_of_substruc, molblock, atomlist, bond_list, spectrum_id, motif)
+                        vis_substructure_in_precursor_mol(path_to_save_png_of_substruc, molblock, atomlist, bond_list,
+                                                          spectrum_id, motif)
                     count = 1
                     list_with_annotated_m2m_frag_and_or_loss.append([m2m_frag_or_loss, fragment_smiles, count])
     return list_with_annotated_m2m_frag_and_or_loss
 
-
-def vis_substructure_in_precursor_mol(path_to_save_png_of_substruc: str,mol_block: str, atom_list: list, bond_list: list, spectrum_id: str, motif: str) -> None:
+def vis_substructure_in_precursor_mol(path_to_save_png_of_substruc: str, mol_block: str, atom_list: list,
+                                          bond_list: list, spectrum_id: str, motif: str) -> None:
     """
     Make a png image file for the library structure and highlighted the frag or loss annotation according to MAGMa
 
-    :param path_to_save_png_of_substruc: path to where the structures of all the library spectra with the annotated Mass2Motif
-    fragment highlighted can be stored
+    :param path_to_save_png_of_substruc: path to where the structures of all the library spectra with the annotated
+    Mass2Motif fragment highlighted can be stored
     :param mol_block: str, a molblock of the precursor molecule representing in numbers what the structure looks like
     :param atom_list: list, the atom list which is a list of integers representing the atoms of the precursor mol that
     the fragment or loss contains.
@@ -476,57 +482,66 @@ def write_spectrum_output_to_df(list_with_annotated_m2m_frag_and_or_loss: list, 
     """
     Writes the obtained list of annotations for each m2m_frag_or_loss to a dataframe.
 
-    :param list_with_annotated_m2m_frag_and_or_loss: list of lists containing with each list containing the name of the m2m_frag_or_loss,
-    the smiles annotation by magma and the count which is 1.
+    :param list_with_annotated_m2m_frag_and_or_loss: list of lists containing with each list containing the name of the
+    m2m_frag_or_loss, the smiles annotation by magma and the count which is 1.
     :param df_with_motifs: Pandas Dataframe with the motifs as an index and in one column a list
-    of lists containing the m2m_frag_or_loss, probability of the m2m_frag_or_loss, the ratio of associated document with the m2m_frag_or_loss,
-    a list of the documents that contain the m2m_frag_or_loss for every selected m2m_frag_or_loss. The second column is a column to put
-    the smiles annotations for the m2m_frag_and_or_loss
+    of lists containing the m2m_frag_or_loss, probability of the m2m_frag_or_loss, the ratio of associated document with
+    the m2m_frag_or_loss, a list of the documents that contain the m2m_frag_or_loss for every selected m2m_frag_or_loss.
+    The second column is a column to put the smiles annotations for the m2m_frag_and_or_loss
     :param current_motif: str, motif in the name of the spectrum file, so the motif, which is according to MassQL,
     present in the spectrum.
-    :return: df_with_motifs, but the list_with_annotated_m2m_frag_and_or_loss have been added to the second column or the counts was
-    increased if the same m2m_frag_or_loss and annotated was already present in the lists of lists
+    :return: df_with_motifs, but the list_with_annotated_m2m_frag_and_or_loss have been added to the second column or
+    the counts was increased if the same m2m_frag_or_loss and annotated was already present in the lists of lists
     """
     for m2m_frag_or_loss in list_with_annotated_m2m_frag_and_or_loss:
         # if there are already annotations in the cell see if they are similar to the current annotation
         if df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"] != "":
-            list_of_m2m_frag_and_or_loss_in_df = [list_with_m2m_frag_or_loss[0] for list_with_m2m_frag_or_loss in df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]]
+            list_of_m2m_frag_and_or_loss_in_df = [list_with_m2m_frag_or_loss[0] for list_with_m2m_frag_or_loss in
+                                                  df_with_motifs.at[
+                                                      current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]]
             if m2m_frag_or_loss[0] not in list_of_m2m_frag_and_or_loss_in_df:
                 df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"].append(m2m_frag_or_loss)
             else:
-                list_of_smiles_in_df = [list_with_m2m_frag_or_loss[1] for list_with_m2m_frag_or_loss in df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]]
+                list_of_smiles_in_df = [list_with_m2m_frag_or_loss[1] for list_with_m2m_frag_or_loss in
+                                        df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]]
                 if m2m_frag_or_loss[1] not in list_of_smiles_in_df:
                     df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"].append(m2m_frag_or_loss)
                 else:
-                    for list_with_m2m_frag_or_loss in df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]:
+                    for list_with_m2m_frag_or_loss in df_with_motifs.at[
+                        current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]:
                         if list_with_m2m_frag_or_loss[0] == m2m_frag_or_loss[0]:
                             if list_with_m2m_frag_or_loss[1] == m2m_frag_or_loss[1]:
-                                list_with_m2m_frag_or_loss[2] = int(list_with_m2m_frag_or_loss[2]) + int(m2m_frag_or_loss[2])
+                                list_with_m2m_frag_or_loss[2] = int(list_with_m2m_frag_or_loss[2]) + int(
+                                    m2m_frag_or_loss[2])
 
-        # if there are no annotations in the cell just add the list containing the m2m_frag_or_loss, annotation and count.
+        # if there are no annotations in the cell just add the list containing the m2m_frag_or_loss, annotation and
+        # count.
         else:
             df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"] = [m2m_frag_or_loss, ]
-    df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"]=sorted(df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"], key=lambda x: x[2],
-           reverse=True)
+    df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"] = sorted(
+        df_with_motifs.at[current_motif, "LoL_m2m_frag_or_loss_annotation_counts"], key=lambda x: x[2],
+        reverse=True)
     return df_with_motifs
 
 def write_output_to_file(updated_df_with_motifs: pd.DataFrame, file_path: str) -> str:
     """Outputs a tab delimited file with the selected motifs, their m2m_frag_and_or_loss and the smiles annotations
 
     :param updated_df_with_motifs: Pandas Dataframe with the motifs as an index and in one column a list
-    of lists containing the m2m_frag_or_loss, probability of the m2m_frag_or_loss, the ratio of associated document with the m2m_frag_or_loss,
-    a list of the documents that contain the m2m_frag_or_loss for every selected m2m_frag_or_loss. The second column contains a list of
-    lists with each list containing the name of the m2m_frag_or_loss, the SMILES annotation by MAGMa and the count.
+    of lists containing the m2m_frag_or_loss, probability of the m2m_frag_or_loss, the ratio of associated document with
+    the m2m_frag_or_loss, a list of the documents that contain the m2m_frag_or_loss for every selected m2m_frag_or_loss.
+    The second column contains a list of lists with each list containing the name of the m2m_frag_or_loss, the SMILES
+    annotation by MAGMa and the count.
     :param file_path: str, the filepath of the output file with the annotations which is in the same directory as
     the text file from make_pdf_with_smiles.py.
-    :return: filepath where the results tab delimited file with the selected motifs, their m2m_frag_and_or_loss and the smiles
-    annotations is stored.
+    :return: filepath where the results tab delimited file with the selected motifs, their m2m_frag_and_or_loss and the
+    smiles annotations is stored.
     """
     # when you are at the end of the spectrum list you add the things to the dataframe
     output_file = open(file_path, "w")
     for index, row in updated_df_with_motifs.iterrows():
         output_file.write("{0}    {1}    {2}".format(index, updated_df_with_motifs.at[index, "m2m_frag_and_or_loss"],
-                                                     updated_df_with_motifs.at[index, "LoL_m2m_frag_or_loss_annotation_counts"]))
+                                                     updated_df_with_motifs.at[
+                                                         index, "LoL_m2m_frag_or_loss_annotation_counts"]))
         output_file.write("\n")
     output_file.close()
     return os.path.abspath(file_path)
@@ -575,7 +590,8 @@ def main():
                         assert False, f"more than 1 file with mgf style spectra for {motif} in dir {path_to_store_spectrum_files}"
             amount_of_annotated_spectra = 0
             # step 3: parse the mgf library spectra for the mass2motif into a dictionary
-            dict_with_mgf_spectra = parse_input(f"{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt")
+            dict_with_mgf_spectra = parse_input(
+                f"{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt")
             for spectrum_id in dict_with_mgf_spectra.keys():
                 # step 4: construct a results database path for a library spectrum for a mass2motif
                 new_or_exists, path_to_results_db_file = construct_path_to_db(spectrum_id,
@@ -616,17 +632,21 @@ def main():
                 list_of_m2m_frag_and_or_loss = rearrange_m2m_frag_and_or_loss(m2m_frag_and_or_loss)
                 # step 11: get a list of the annotated fragments and smiles of the annotated library spectrum
                 list_with_fragments_and_smiles = fetch_fragments_and_annotations(path_to_results_db_file)
-                # step 12: look for matches in the two lists so you end up with a list with only smiles for the m2m_frag_and_or_loss of the
-                # current motif
+                # step 12: look for matches in the two lists so you end up with a list with only smiles for the
+                # m2m_frag_and_or_loss of the current motif
                 list_with_annotated_m2m_frag_and_or_loss = search_for_smiles(list_of_m2m_frag_and_or_loss,
-                                                                         list_with_fragments_and_smiles,
-                                                                         path_to_results_db_file, spectrum_id, motif, path_to_save_png_of_substruc)
-                # The list with annotated m2m_frag_and_or_loss could be None if the m2m_frag_and_or_loss of the motif are not in the list of
-                # annotated m2m_frag_and_or_loss by MAGMa: which means the Mass2Motif fragment or loss could not be annotated by MAGMa
+                                                                             list_with_fragments_and_smiles,
+                                                                             path_to_results_db_file, spectrum_id,
+                                                                             motif, path_to_save_png_of_substruc)
+                # The list with annotated m2m_frag_and_or_loss could be None if the m2m_frag_and_or_loss of the motif
+                # are not in the list of annotated m2m_frag_and_or_loss by MAGMa: which means the Mass2Motif fragment
+                # or loss could not be annotated by MAGMa
                 if list_with_annotated_m2m_frag_and_or_loss:
-                    # step 13: add the new annotations for the m2m_frag_and_or_loss from the spectrum file in the database
+                    # step 13: add the new annotations for the m2m_frag_and_or_loss from the spectrum file in the
+                    # database
                     amount_of_annotated_spectra += 1
-                    df_with_motifs = write_spectrum_output_to_df(list_with_annotated_m2m_frag_and_or_loss, df_with_motifs,motif)
+                    df_with_motifs = write_spectrum_output_to_df(list_with_annotated_m2m_frag_and_or_loss,
+                                                                 df_with_motifs, motif)
             print(f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
             print(f"amount of spectra that had an annotation for {motif} is {amount_of_annotated_spectra}")
     # step 14: writes the dataframe to a tab-delimited file
