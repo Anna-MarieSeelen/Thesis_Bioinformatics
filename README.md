@@ -22,7 +22,7 @@ see https://github.com/iomega/ms2query for installation and run instructions
 conda install -c conda-forge rdkit
 
 ### Run script
-e.g. python3 make_pdf_with_smiles.py 
+e.g. python3 select_Mass2Motif_frag_and_loss.py
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/select_Mass2Motifs/input/MS2Query_output.csv 
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/select_Mass2Motifs/input/MS2LDA_spectra_and_motif.csv 
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/select_Mass2Motifs/input/MS2LDA_motif_and_fragments.csv 
