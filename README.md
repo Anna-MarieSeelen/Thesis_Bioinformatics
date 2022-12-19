@@ -7,7 +7,6 @@ The blue rectangular blocks represent tools or websites used in the pipeline, an
 
 ## Input
 
-
 ## MS2Query
 
 see https://github.com/iomega/ms2query for installation and run instructions
@@ -61,5 +60,7 @@ conda install -c conda-forge rdkit
 see https://github.com/NLeSC/MAGMa/tree/master/job
 
 ### Run script
+
+e.g. python3 MAGMa_previous_version.py /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MassQL/output/out_spectrum /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MAGMa/output/MAGMa_results_database_for_every_spectrum_from_massql /home/seele006/thesis/motif_massql_querries.txt /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MAGMa/output/pic_mass2Motif_frag
 
 ## Output
