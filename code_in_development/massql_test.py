@@ -2,70 +2,103 @@
 """
 Author: Anna-Marie Seelen
 Studentnumber:1008970
-Description: alignment of protein sequences to a reference protein sequence
-and returning stats
-Usage: python3 *name_of_script* *name_input_file* [*output_file*] [gap_penalty]
-    name_of_script:
-    name_input_file:
-    output_file: (optional)
-    gap_penalty: default is 8 (optional)
+Description: Takes a file with MassQL queries, searches for spectra in json file that contain the queries and writes
+these spectra to individual files in mgf-style.
+Usage: python3 massql_search_spectra_with_motif.py *path_to_file_with_motifs_queries*
+*pickle_file_with_gnps_all_positive_MS/MS_spectra* *path_to_store_spectrum_files* *path_to_store_match_files*
+*path_to_store_mgf_file_and_name* *path_to_store_json_file_and_name*
+
+    path_to_file_with_motifs_queries: a tab separated file with a selected motif, feature list and massql query on each
+    line (output from make_pdf_with_smiles.py)
+    pickle_file_with_gnps_all_positive_MS/MS_spectra: path to pickle file which is in:
+    /mnt/LTR_userdata/hooft001/mass_spectral_embeddings/datasets/GNPS_15_12_21/ALL_GNPS_15_12_2021_positive_annotated.pickle
+    path_to_store_spectrum_files: folder where all the mgf-formatted text files with spectra will be stored that contain
+    a selected motif (determined by MassQL)
+    path_to_store_match_files: folder where per Mass2Motif query a file will be stored containing the amount of massql
+    matches and the smiles of each selected library spectrum
+    path_to_store_mgf_file_and_name: the path and the file name that you want for the mgf-formatted MS/MS spectra from
+    GNPS
+    path_to_store_json_file_and_name: the path and the file name that you want for the json MS/MS spectra from
+    GNPS
 """
 
 # import statements
 from massql import msql_engine
 from sys import argv
-import sys
-#import ALL_GNPS_210409_positive_processed_annotated_CF_NPC_classes.txt
-import ntpath
-import pyarrow.feather as feather
-import os
-import pyteomics
-import re
-# import rdkit.Chem as Chem
-# from rdkit.Chem.Draw import MolToImage
-#from fpdf import FPDF
-import json
-from pandas import json_normalize
-import pandas as pd
-import ast
-import subprocess
 from pathlib import Path
 import re
-import os, glob
-import matchms
+import pandas as pd
+import sys, os
 from matchms import Scores, Spectrum
 import json
 from typing import List
 import numpy
-from matchms import Spectrum
-import csv
+from pandas import json_normalize
+import time
+from matchms.filtering import select_by_relative_intensity
+from matchms.exporting import save_as_mgf
 
 # functions
+def parse_input(mgf_file: str) -> dict:
+    """Parses mgf into strings, where each string is a spectrum and stores those in dict with the spectrum_id as key.
 
-def parse_line_with_motifs_and_querries(line):
-    motif=re.search(r'(.*)    (.*)    (.*)', line).group(1)
-    fragments=re.search(r'(.*)    (.*)    (.*)', line).group(2)
-    query=re.search(r'(.*)    (.*)    (.*)', line).group(3)
-    return motif,fragments,query
+    :param mgf_file: str, the path and the file name that you want for the mgf-formatted MS/MS spectra from
+    GNPS
+    :return: dictionary with {spectrum_id:record} where each record is a string containing the mgf-style accession of
+    one compound
+    """
 
-def save_json_as_csv(json_file):
-    with open(json_file) as json_file:
-        jsondata = json.load(json_file)
+    lines_mgf_file=open(mgf_file)
+    spectrum_record_bool = False
+    mgf_spectrum_records=[]
+    mgf_spectrum_record = ""
+    for line in lines_mgf_file:
+        if line.startswith("BEGIN IONS"):
+            spectrum_record_bool=True
+        if spectrum_record_bool:
+            mgf_spectrum_record+=line
+        if line.startswith("END IONS"):
+            mgf_spectrum_records.append(mgf_spectrum_record)
+            spectrum_record_bool = False
+            mgf_spectrum_record=""
 
-    data_file = open('/lustre/BIF/nobackup/seele006/MassQL_speclib/HMDB.csv', 'w', newline='')
-    csv_writer = csv.writer(data_file)
+    dict_with_mgf_spectra={}
+    for mgf_spectrum_record in mgf_spectrum_records:
+        mgf_spectrum_record=mgf_spectrum_record.strip()
+        # look for the spectrumid in the string and use it as a key for the dict
+        key = re.search(r'SPECTRUMID=(.*)', mgf_spectrum_record).group(1)
+        if key is not None:
+            dict_with_mgf_spectra[key] = mgf_spectrum_record
+    return dict_with_mgf_spectra
 
-    count = 0
-    for data in jsondata:
-        if count == 0:
-            header = data.keys()
-            print(header)
-            csv_writer.writerow(header)
-            count += 1
-        csv_writer.writerow(data.values())
+def make_json_mgf_file(path_to_pickle_file: str, path_to_store_json_file: str, path_to_store_mgf_file: str,
+                           intensity_threshold=0.8) -> tuple:
+    """
+    Takes a pickle file with matchms spectrum objects and returns selected spectra in mgf and json format
 
-    data_file.close()
-    return None
+    :param path_to_pickle_file: str, path to pickle file which contains matchms spectrum objects of GNPS library spectra
+    :param path_to_store_json_file: str, the path and the file name that you want for the json MS/MS spectra from
+    GNPS
+    :param path_to_store_mgf_file: str, the path and the file name that you want for the mgf-formatted MS/MS spectra
+    from GNPS
+    :param intensity_threshold: float, relative intensity threshold to select fragment peaks to include in the json
+    and mgf file. This threshold should be similar as the threshold used in the massql queries (default: 0.8).
+    :return: tuple with strings, the strings are the path to the json and mgf file with the library spectra with the
+    selected peaks
+    """
+    if os.path.exists(path_to_store_json_file):
+        assert False, f"path to json file {path_to_store_json_file} exists, remove it!"
+    if os.path.exists(path_to_store_mgf_file):
+        assert False, f"path to mgf file {path_to_store_mgf_file} exists, remove it!"
+    obj = pd.read_pickle(path_to_pickle_file)
+    spectrum_list=[]
+    for spectrum in obj:
+        spectrum = select_by_relative_intensity(spectrum, intensity_from=intensity_threshold)
+        spectrum_list.append(spectrum)
+    #there is some weird error that save_as_json gives but ignore it
+    save_as_json(spectrum_list,path_to_store_json_file)
+    save_as_mgf(spectrum_list, path_to_store_mgf_file)
+    return path_to_store_json_file, path_to_store_mgf_file
 
 def save_as_json(spectrums: List[Spectrum], filename: str):
     """Save spectrum(s) as json file.
@@ -76,6 +109,8 @@ def save_as_json(spectrums: List[Spectrum], filename: str):
         Expected input are match.Spectrum.Spectrum() objects.
     filename:
         Provide filename to save spectrum(s).
+
+    Note: copied and adjusted function from matchms
     """
     if not isinstance(spectrums, list):
         # Assume that input was single Spectrum
@@ -95,293 +130,167 @@ def save_as_json(spectrums: List[Spectrum], filename: str):
             spectrum_dict["peaks_json"] = peaks_list
             spectrum_dict["Precursor_MZ"] = spectrum_dict["precursor_mz"]
             del spectrum_dict["precursor_mz"]
+            spectrum_dict["scan"] = spectrum_dict["scans"]
+            del spectrum_dict["scans"]
 
             json.dump(spectrum_dict, fout)
             if i < len(spectrums) - 1:
                 fout.write(",")
         fout.write("]")
 
-def make_json_file(pickle_file, path_to_store_json_file):
-    # if os.path.exists(path_to_store_json_file):
-    #      print(os.path.abspath(path_to_store_json_file))
-    obj = pd.read_pickle(pickle_file)
-    spectrum_list=[]
-    for spectrum in obj:
-        spectrum_list.append(spectrum)
-    save_as_json(spectrum_list,path_to_store_json_file)
-    return None
+def parse_line_with_motif_and_query(line: str) -> tuple:
+    """
+    Takes a line in a tab separated file and separates it into motif, feature list and massql query
 
-def try_massql(query, json_file):
-    print(query)
-    df=msql_engine.process_query(query,json_file)
-    print(df)
-    df.rename(columns={'scan': 'spectrum_id'}, inplace=True)
-    df.set_index("spectrum_id", inplace=True, drop=True)
-    return df
-
-def parse_input(filename):
-    """Parses argonaut formatted file to extract accession number, organism name and DNA_seq and stores those in dict.
-
-    filename: str, name of argonaut formatted input file
-    return: nested dictionary with {accession_number:{organism_name:DNA-seq}}
+    :param line: str, line in a tab separated file containing the motif, list of features and the massql query
+    :return: returns the motif, feature_list and the massql query in a tuple
     """
 
-    lines=(open(filename))
-    record_bool = False
-    records=[]
-    record = ""
-    for line in lines:
-        line=line.strip()
-        line = line.replace('\n', '')
-        line = line.replace('\t', '')
-        if line.startswith("BEGIN IONS"):
-            #line = line.replace("ACCESSION   ", "")
-            record_bool=True
-        elif line.startswith("END IONS"):
-            record_bool=False
-            records.append(record)
-            record=""
-        # elif line.startswith("ORGANISM"):
-        #     organism_dict = {}
-        #     line = line.replace("ORGANISM  ", "")
-        #     key = list(gb_dict)[-1]
-        #     organism_dict[line] = ""
-        #     gb_dict[key] = organism_dict
-        # elif "ORIGIN" in line:
-        #     origin=True
-        # elif "//" in line:
-        #     origin=False
-        if record_bool:
-            record+=line
-    #print(records)
+    splitted_line = line.split("\t")
+    assert len(
+        splitted_line) == 3, "Expected a file with lines with tabs seperating motif, feature_list and massql query"
+    motif, features, massql_query = splitted_line
+    return motif,features,massql_query
 
-    # dict={}
-    for record in records:
-        key = re.search(r'190.119(.*)520', record)
-        if key is not None:
-            print(record)
-        # key=re.search(r'NAME=(.*)',record)
-        # smiles=re.search(r'SMILES=(.*)',record)
-        # mass=re.search(r'PEPMASS=(.*)',record)
-        # if key is not None:
-        #     dict[key.group(1)]=[]
-        # if smiles is not None:
-        #     last_key = list(dict)[-1]
-        #     dict[last_key].append(smiles.group(1))
-        # if mass is not None:
-        #     last_key = list(dict)[-1]
-        #     dict[last_key].append(mass.group(1))
-        #INCHI=
-    # print(dict)
-            # line=line.replace(" ", "")
-            # line=''.join(filter(lambda ch: not ch.isdigit(), line))
-            # #https://www.studytonight.com/python-howtos/remove-numbers-from-string-in-python
-            # line = line.replace("ORIGIN", "")
-            # key = list(gb_dict)[-1]
-            # dict=gb_dict[key]
-            # last_key=list(dict)[-1]
-            # gb_dict[key][last_key]+=line
-    return None
-
-def read_json(json_file):
+def read_json(json_file: str) -> pd.DataFrame:
     """
+    Loads a json file into a pd.DataFrame
 
-    :param json_file:
-    :return:
+    :param json_file: str, path to json file with selected GNPS library spectra in json format
+    :return: pd.DataFrame with GNPS library spectra with selected peaks in json format
     """
     with open(json_file, 'r') as f:
         dict=json.load(f)
-    df=json_normalize(dict)
-    #print(df.columns)
-    df.set_index("spectrum_id",inplace=True, drop=True)
-    #print(df.loc["CCMSLIB00004678842"])
-    #print(df.loc["CCMSLIB00000072521", "peaks_json"])
-    return df
+    df_json=json_normalize(dict)
+    df_json.set_index("spectrum_id",inplace=True, drop=True)
+    return df_json
 
-def new_dataframe(df_massql_matches,df_json):
+def search_motif_with_massql(massql_query: str, path_to_json_file: str) -> pd.DataFrame:
     """
-    Makes a dataframe with scan precmz smiles and
-    :return:
+    Uses MassQL to retrieve the identifiers of the spectra in the json file that contain the query
+
+    :param massql_query: str, MassQL query made based on a Mass2Motif
+    :param path_to_json_file: str, the path to a file with MS/MS spectra retrieved from GNPS in json format
+    :return: returns a Pandas dataframe with the spectrum ids of the spectra as the index which contain the
+    characteristics of the query.
     """
-    # this is also an interesting column for df_json but I think its always the same as the smiles "InChIKey_smiles"
-    df=pd.merge(df_massql_matches["precmz"],df_json[["Precursor_MZ","Smiles", "peaks_json"]],left_index=True, right_index=True)
-    # for pickle file smiles instead of Smiles
+    # msql_engine only takes json files and will print search bars, just ignore it.
+    df_massql_res=msql_engine.process_query(massql_query,path_to_json_file)
+    if not df_massql_res.empty:
+        df_massql_res.rename(columns={'scan': 'spectrum_id'}, inplace=True)
+        df_massql_res.set_index("spectrum_id", inplace=True, drop=True)
+        return df_massql_res
+
+def select_massql_matches(path_to_store_match_files: str, df_massql_matches: pd.DataFrame, df_json: pd.DataFrame,
+                              motif: str) -> pd.DataFrame:
+    """
+    Makes a dataframe and csv file with 30 or less matched library spectra for a motif query and the precmz, and smiles
+
+    :param path_to_store_match_files: folder where per Mass2Motif query a file will be stored containing the amount of
+    massql matches and the smiles of each selected library spectrum
+    :param df_massql_matches: pd.DataFrame, with the spectrum ids of the spectra as the index which contain the
+    characteristics of the query.
+    :param df_json: pd.DataFrame, with GNPS library spectra with selected peaks in json format
+    :param motif: str, the mass2motif for which the query was made
+    :return: pd.DataFrame with the selected spectrum ids as index, the precmz of the selected spectra and the smiles
+    """
+
+    df_matched_spectra_smiles = pd.merge(df_massql_matches["precmz"], df_json[["Precursor_MZ", "smiles"]],
+                                         left_index=True, right_index=True)
     # for some matches there are no smiles so remove those from the dataframe
-    df.drop(df.index[df['Smiles'] == 'N/A'], inplace=True)
-    df.drop(df.index[df['Smiles'] == ' '], inplace=True)
-    # for index, row in df.iterrows():
-    #     print(df.at[index,"Smiles"])
-    return df
+    df_matched_spectra_smiles.drop(df_matched_spectra_smiles.index[df_matched_spectra_smiles['smiles'] == 'N/A'],
+                                   inplace=True)
+    df_matched_spectra_smiles.drop(df_matched_spectra_smiles.index[df_matched_spectra_smiles['smiles'] == ' '],
+                                   inplace=True)
+    df_matched_spectra_smiles.drop_duplicates('smiles', inplace=True)
+    df_matched_spectra_smiles.reset_index(inplace=True)
+    df_matched_spectra_smiles=df_matched_spectra_smiles.set_index('spectrum_id')
+    # if you have more than 30 non-redundant matches randomly select 30 matches, because otherwise it will take too long
+    if len(df_matched_spectra_smiles) > 30:
+        df_matched_spectra_smiles=df_matched_spectra_smiles.sample(n=30)
+    count=len(df_matched_spectra_smiles)
+    df_matched_spectra_smiles.to_csv(f"{path_to_store_match_files}/{motif}_amount_of_matches_{count}", sep='\t',
+                                     encoding='utf-8')
+    return df_matched_spectra_smiles
 
-def make_spectrum_file_for_id2(df_json, spectrum_id, path_to_store_spectrum_files):
-    """Takes a nested sorted list and outputs a tab delimited file
-
-    alignment_list: nested list with families and alignment lenghts
-    return: tab delimited text file with the contents of each sub list on a line
+def make_mgf_file_for_spectra(motif: str, df_massql_matches: pd.DataFrame, path_to_store_spectrum_files: str,
+                                       dict_with_mgf_spectra: dict) -> None:
     """
-    list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
-    HMDB_id=re.search(r'(HMDB:)(HMDB\d*)(-.*)', ast.literal_eval(df_json.loc[spectrum_id, "Compound_Name"])).group(2)
-    print(HMDB_id)
-    file_path = Path(r"{0}/spectrum_file_{1}.txt".format(path_to_store_spectrum_files,spectrum_id))
-    # if os.path.exists(file_path):
-    #     print(os.path.abspath(file_path))
-    #     return os.path.abspath(file_path)
-    spectrum_file=open(file_path, "w")
-    for i in range(3):
-        spectrum_file.write("energy{0}\n".format(i))
-        for sub_list in list_of_lists:
-            #if sub_list[1]>600: #dit is ff een tussen oplossing om een file te krijgen waar je iets mee kan!
-            spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
-            spectrum_file.write("\n")
-    spectrum_file.close()
-    print(os.path.abspath(file_path))
+    Writes a spectrum containing the motif to a text file in mgf format using the identifier given by MassQL
 
-def make_spectrum_file_for_id(df_json, spectrum_id, path_to_store_spectrum_files):
-    """Takes a nested sorted list and outputs a tab delimited file
-
-    alignment_list: nested list with families and alignment lenghts
-    return: tab delimited text file with the contents of each sub list on a line
+    :param motif: str, the Mass2Motif for which the MassQL query was made and for which the spectrum was found, which
+    contains the motif
+    :param df_massql_matches: pd.Dataframe, with the spectrum ids of the spectra as the index which contain the
+    characteristics of the query. The spectrum_id of GNPS spectra files formatted like this: CCMSLIB00000425029
+    :param path_to_store_spectrum_files: str, folder where all the mgf-formatted text files (one for each motif) with
+    spectra will be stored.
+    :param dict_with_mgf_spectra: dict, with {spectrum_id:record} where each record is a string containing the mgf-style
+    spectrum of one compound
+    :return: None
     """
-    list_of_lists=ast.literal_eval(df_json.loc[spectrum_id, "peaks_json"])
-    file_path = Path(r"{0}/spectrum_file_{1}.txt".format(path_to_store_spectrum_files,spectrum_id))
-    # if os.path.exists(file_path):
-    #     print(os.path.abspath(file_path))
-    #     return os.path.abspath(file_path)
-    spectrum_file=open(file_path, "w")
-    for i in range(3):
-        spectrum_file.write("energy{0}\n".format(i))
-        for sub_list in list_of_lists:
-            #if sub_list[1]>600: #dit is ff een tussen oplossing om een file te krijgen waar je iets mee kan!
-            spectrum_file.write("{0} {1}".format(sub_list[0], sub_list[1]))
-            spectrum_file.write("\n")
-    spectrum_file.close()
-    print(os.path.abspath(file_path))
-
-def make_spectrum_file_for_id_matchms(gnps_pickled_lib, spectrum_id, path_to_store_spectrum_files):
-    #object=list(matchms.importing.load_scores.scores_from_pickle(gnps_pickled_lib))
-    obj = pd.read_pickle(gnps_pickled_lib)
-    # with open(gnps_pickled_lib, 'r') as f:
-    #     spectra=pickletools.(f)
-    # spectra=gnps_pickled_libS
-    # print(spectra.peaks.mz[0])
-    for spectrum in obj:
-        if spectrum.get("spectrum_id") == spectrum_id:
-            file_path = Path(r"{0}/spectrum_file_{1}_new.txt".format(path_to_store_spectrum_files, spectrum_id))
-            print(os.path.abspath(file_path))
-            spectrum_file=open(file_path, "w")
-            for i in range(1):  #change to 3 for cfm-annotate
-                #spectrum_file.write("energy{0}\n".format(i))
-                for fragment in range(len(spectrum.peaks.mz)):
-                    spectrum_file.write("{0} {1}".format(spectrum.peaks.mz[fragment], spectrum.peaks.intensities[fragment]))
-                    spectrum_file.write("\n")
-            spectrum_file.close()
-    #object=list(matchms.importing.load_from_pickle)
-    #print(object)
-    return None
-
-def annotate_peaks(spectrum_file, smiles):
-    """
-    Annotates the MS2 peaks given a smiles and a fragmentation spectrum
-    :return:
-    """
-    #print(df.loc["CCMSLIB00006126912"])
-    return None
-
-def annotate_peaks(spectrum_file_name, smiles, identifier, abs_mass_tol=0.01):
-    """
-    Annotates the MS2 peaks given a smiles and a fragmentation spectrum
-    :return:
-    """
-    # print(df.loc["CCMSLIB00004678842"])
-    # cfm-annotate.exe <smiles_or_inchi> <spectrum_file> **<id>** <ppm_mass_tol> <abs_mass_tol> 0.01<param_file> <config_file> <output_file
-    file_path_out = Path(r"/lustre/BIF/nobackup/seele006/cfm_annotation_out_{0}".format(identifier))
-    out_fn = "cfm_annotation_out_{0}".format(identifier)
-    if os.path.exists(out_fn):
-        return out_fn
-    cmd = 'cfm-annotate \'{0}\' {1} {2} -abs_mass_tol {3} -output_file {4}' \
-            .format(smiles, spectrum_file_name, identifier, abs_mass_tol, out_fn)
-    e = subprocess.check_call(cmd, shell=True)
-    print("EXIT STATUS AND TYPE", e, type(e))
-    print("hi")
-    return out_fn
-
-def visualize_mol(smiles: str) -> None:
-    """
-    Takes a smiles as input and outputs an PIL<PNG> image
-
-    :param smiles: str, a smiles string that corresponds to a molecular structure
-    :return: PIL<PNG> image, image of structure corresponding with the smiles
-
-    function adapted from: https://pchanda.github.io/See-substructure-in-molecule/
-    """
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        return None
-    Chem.Kekulize(mol)
-    img = MolToImage(mol, size=(200, 200), fitImage=True)
-    return img
-
-def look_for(cfm_file,motif,fragments):
-    """
-    # First parse the cfm_file because you only want the middle part
-    #Then for each fragment of the motif you want you want to select the smiles
-    Selection of the annotated peaks that are relevant for the mass2motif
-    #TODO: think about how you will do this for neutral loss...
-    :return:
-    """
-    return None
-
-def select_the_most_likely_option_for_one_motif():
-    #look through all the possible smiles for a fragment and select the one that is there most often
-    # return the motif with the with fragment, probability and most likely smiles
-    return None
-
-def delete_files(path_to_store_spectrum_files):
-    for file in os.scandir(path_to_store_spectrum_files):
-        os.remove(file.path)
+    # the dataframe can be empty for some motifs, but if its not empty
+    if df_massql_matches is not None:
+        # create a path to store the mgf spectra of the matches found for the motif by MassQL
+        path_to_spectra_file_for_motif = Path(
+            fr"{path_to_store_spectrum_files}/mgf_spectra_for_{motif}_from_massql.txt")
+        identifier_num = 0
+        for identifier, row in df_massql_matches.iterrows():
+            spectrum_record_mgf = dict_with_mgf_spectra[identifier]
+            # if its the first identifier of the dataframe: make the mgf_spectrum file
+            identifier_num += 1
+            if identifier_num == 1:
+                if os.path.exists(path_to_spectra_file_for_motif):
+                    assert False, f"The mgf spectra file for {motif} already exists, remove it"
+                # write to the new file
+                else:
+                    mgf_spectra_file = open(path_to_spectra_file_for_motif, "w")
+                    mgf_spectra_file.write(spectrum_record_mgf)
+                    mgf_spectra_file.write("\n")
+                    mgf_spectra_file.close()
+            # else append to the file with mgf spectra if the identifier is not the first identifier
+            else:
+                mgf_spectra_file = open(path_to_spectra_file_for_motif, "a")
+                mgf_spectra_file.write("\n")
+                mgf_spectra_file.write(spectrum_record_mgf)
+                mgf_spectra_file.write("\n")
+                mgf_spectra_file.close()
     return None
 
 def main():
     """Main function of this module"""
-    #path_to_pickle_file = argv[2]
-    path_to_json_file= argv[2]
-    filename=argv[1]
+    before_script = time.perf_counter()
+    path_to_file_with_motifs_queries = argv[1]
+    path_to_pickle_file = argv[2]
     path_to_store_spectrum_files = argv[3]
-    #path_to_json_file=argv[4]
-    #make_json_file(path_to_pickle_file, path_to_json_file)
-    # step 0: parse input line
-    lines = (open(filename))
-    save_json_as_csv(path_to_json_file)
-    for line in lines:
-        line = line.strip()
-        line = line.replace('\n', '')
-        motif, fragments, query=parse_line_with_motifs_and_querries(line)
-        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2PROD = 85.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 68.0275:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.186:INTENSITYMATCHPERCENT=99 AND MS2PROD = 97.0250:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.156:INTENSITYMATCHPERCENT=99")
-        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 176.0350:TOLERANCEMZ=0.01:INTENSITYMATCH=Y:INTENSITYMATCHREFERENCE AND MS2PROD = 126.0550:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.089:INTENSITYMATCHPERCENT=99 AND MS2PROD = 127.0375:TOLERANCEMZ=0.01:INTENSITYMATCH=Y*0.082:INTENSITYMATCHPERCENT=99")
-        query = ("QUERY scaninfo(MS2DATA) WHERE POLARITY = Positive AND MS2NL = 46.0050:TOLERANCEMZ=0.005") #motif gnps_motif_38.m2m
-        # step 1: parse json file
-        df_json=read_json(path_to_json_file)
-        # step 2: search query in json file with MassQL
-        df_massql_matches=try_massql(query, path_to_json_file)
-        # step 3: get the smiles for every match of MassQL
-        df_matches_and_smiles=new_dataframe(df_massql_matches,df_json)
-        # step 4: print a spectrum file for a match
-        #for identifier in list(index_smiles)
-        #list_of_lists = ast.literal_eval(df_json.loc[identifier, "peaks_json"])
-        #make_spectrum_file_for_id(list_of_lists, identifier)
-        identifier="CCMSLIB00000426038" #result from HMDB with Motif_38
-        spectrum_file_name=make_spectrum_file_for_id2(df_json, identifier, path_to_store_spectrum_files)
-        print(df_matches_and_smiles.loc[identifier, "Smiles"])
-        #make_spectrum_file_for_id_matchms(path_to_pickle_file, identifier, path_to_store_spectrum_files)
-        # make a huge list for each of the motifs containing the possible smiles per fragments
-        #annotate_peaks(spectrum_file_name, smiles)
-        #Make PDF
-        # pdf = FPDF()
-        # pdf.add_page()
-        # pdf.set_font("helvetica", size=10)
-        # pdf.image(visualize_mol("N[C@@H](CCCCNC(N)=O)C(O)=O"))
-        # pdf.output("output.pdf")
-
+    path_to_store_match_files=argv[4]
+    path_to_store_mgf_file = argv[5]
+    path_to_store_json_file=argv[6]
+    # step 1: transfer the data from the pickle file to a json and mgf file and select spectrum peaks above threshold
+    path_to_store_json_file, path_to_store_mgf_file = make_json_mgf_file(path_to_pickle_file, path_to_store_json_file,
+                                                                         path_to_store_mgf_file,
+                                                                         intensity_threshold=0.8)
+    # step 2: make a dictionary with all the accessions in the mgf file
+    dict_with_mgf_spectra=parse_input(path_to_store_mgf_file)
+    # step 3: read the json file into a dataframe
+    df_json=read_json(path_to_store_json_file)
+    # step 4: parse the lines in the file where all the selected motifs and their corresponding massql queries are
+    # listed.
+    with open(path_to_file_with_motifs_queries, "r") as lines_motif_file:
+        for line in lines_motif_file:
+            line = line.strip()
+            line = line.replace('\n', '')
+            # step 5: retrieve the motif and the massql query one by one
+            motif, features, massql_query=parse_line_with_motif_and_query(line)
+            # step 6: search for spectra with the motif in json file with MassQL
+            df_massql_matches=search_motif_with_massql(massql_query, path_to_store_json_file)
+            # step 7: make a df and csv file with the smiles of the selected library spectra for each motif
+            df_massql_matches_with_smiles = select_massql_matches(path_to_store_match_files, df_massql_matches, df_json,
+                                                                  motif)
+            # step 8: make a file with all the mgf formatted library spectra for every identified match for a motif
+            make_mgf_file_for_spectra(motif, df_massql_matches_with_smiles, path_to_store_spectrum_files,
+                                                                       dict_with_mgf_spectra)
+    after_script = time.perf_counter()
+    print("how long the total script took {0}".format(after_script - before_script))
 
 if __name__ == "__main__":
     main()
