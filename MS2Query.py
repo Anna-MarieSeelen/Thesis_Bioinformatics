@@ -12,9 +12,6 @@ Usage: python3 *name_of_script* *path_folder_input* *path_folder_library_files*
 """
 # import statements
 from sys import argv
-import re
-import subprocess
-import os.path
 from ms2query.run_ms2query import download_default_models, default_library_file_base_names, run_complete_folder
 from ms2query.ms2library import create_library_object_from_one_dir
 import time

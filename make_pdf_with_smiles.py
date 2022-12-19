@@ -5,7 +5,7 @@ Studentnumber:1008970
 Description: takes result csv files of MS2LDA and MS2Query and outputs a pdf that gives an overview of the selected
 motifs and analogs. In addition, it outputs a text file with the selected mass2motifs and their MassQL queries.
 Usage: python3 *name_of_script* *path_to_file_with_MS2Query_results_csv* *path_file_with_MS2LDA_Motif_spectrum_ids_csv*
-*path_file_with_Motif_fragments_csv* *path_with_mgf_file_from_GNPS_molecular_network*
+*path_file_with_Motif_fragments_csv* *path_with_mgf_file_from_GNPS_molecular_network* *dir_to_save_pic_of_structures*
 
     name_of_script: make_pdf_with_smiles.py
     path_to_file_with_MS2Query_results_csv: output file from the MS2Query.py script with spectrum_id number and
@@ -16,6 +16,7 @@ Usage: python3 *name_of_script* *path_to_file_with_MS2Query_results_csv* *path_f
     and which motif these are associated with
     path_with_mgf_file_from_GNPS_molecular_network: file downloaded from the GNPS website after a molecular networking
     job. This file contains all the spectra from the inputted MzML format in a mgf style format.
+    dir_to_save_pic_of_structures: directory to save png files of ms2query analogues for experimental spectra
 """
 
 # import statements
@@ -50,6 +51,7 @@ def convert_Mass2Motifs_to_df(path_file_with_Motif_spectrum_ids_csv: str, thresh
 
     df_MS2LDA = pd.read_csv(path_file_with_Motif_spectrum_ids_csv, header=0)
     #add a new column the dataframe with a list of the spectrum_id, probability and overlap score for each spectrum_id
+    df_MS2LDA.rename(columns = {'Document':'spectrum_id'}, inplace = True)
     df_MS2LDA["spectrum_id+Probability+Overlap"] = df_MS2LDA[
         ["spectrum_id", "Probability", "Overlap Score"]].values.tolist()
     # First make a dataframe with the Motifs as index and a second column with a list of lists containing the associated
@@ -115,6 +117,7 @@ def convert_fragments_in_motif_to_df(path_file_with_MS2LDA_csv_fragments: str) -
 
     df_Motif_fragments= pd.read_csv(path_file_with_MS2LDA_csv_fragments, header=0)
     # First make a column for each motif with a list of the probability and fragment or loss combined
+    df_Motif_fragments.rename(columns={'Feature': 'frag_or_loss'}, inplace=True)
     df_Motif_fragments["Fragment+Probability"]=df_Motif_fragments[["frag_or_loss", "Probability"]].values.tolist()
     # Then make Motifs index and the second column with a list of lists containing the fragments and probability
     df_motif_list_of_lists_frag_or_loss = df_Motif_fragments[["Motif", "Fragment+Probability"]].groupby("Motif",
@@ -160,7 +163,6 @@ def make_list_of_selected_motifs(df_motifs_to_spectra: pd.DataFrame, df_spectra_
                 if cell in df_spectra_to_smiles.index.values.tolist():
                     if df_spectra_to_smiles.at[cell, "smiles"] != "":
                         amount_of_smiles += 1
-                print(f" the amount of reliable smiles: {amount_of_smiles}")
             # selection of Mass2Motifs based on the amount of smiles with a probability > 0.7 (default).
             # At least 1 or more Smiles are needed for a mass2motif to be added to the list so that the validation can
             # happen
@@ -188,7 +190,6 @@ def calculate_spectra_ratio_for_frag_or_loss(M2M_fragment_or_loss: list, motif: 
     :param M2M_frag_list_of_lists_with_counts: list, a list of lists with each list containing a fragment or loss
     associated with the motif, probability of the fragment or loss, the ratio of associated spectrum_id with the
     fragment or loss, and a list of the spectrum_ids that contain the fragment or loss.
-    #TODO: wat is de laatste ding van de list hier? de spectrum ids maar dat kan toch niet?
     :param mgf_file: str, path to file downloaded from the GNPS website after a molecular networking job.
     This file contains all the spectra from the inputted MzML format in a mgf style format.
     :param df_motifs_to_spectra: Pandas dataframe, with the motifs as index and each associated spectrum_id in a
@@ -198,11 +199,13 @@ def calculate_spectra_ratio_for_frag_or_loss(M2M_fragment_or_loss: list, motif: 
     fragment or loss, the ratio of associated spectrum_id with the fragment or loss, a list of the spectrum_ids that
     contain the fragment or loss.
     """
+
     number_spectrum_ids_ass_with_motif = len(df_motifs_to_spectra.at[motif, "spectrum_id+Probability+Overlap"])
     spectra = list(load_from_mgf(mgf_file))
     spectrum_ids_that_contain_fragment = []
     num_of_ass_spectra_with_frag_or_loss = 0
-    # for every spectrum_id associated with a motif we will see if the spectrum of the spectrum_id contains the fragment or loss
+    # for every spectrum_id associated with a motif we will see if the spectrum of the spectrum_id contains the fragment
+    # or loss
     for spectrum_id in df_motifs_to_spectra.at[motif, "spectrum_id+Probability+Overlap"]:
         # for every spectrum_id associated with each fragment or loss for each motif you want to check if the spectrum_id
         # contains the fragment or loss
@@ -230,11 +233,13 @@ def calculate_spectra_ratio_for_frag_or_loss(M2M_fragment_or_loss: list, motif: 
                                                                                          rounding=ROUND_DOWN)
                         # if a fragment in the spectrum is the same as a fragment in the fragment or loss
                         # then the spectrum_id contains the fragment!
-                        if float(rounded_fragment) == float(re.search(r'\_(.*\..{2}).*', M2M_fragment_or_loss[0]).group(1)):
+                        if float(rounded_fragment) == float(
+                                re.search(r'\_(.*\..{2}).*', M2M_fragment_or_loss[0]).group(1)):
                             num_of_ass_spectra_with_frag_or_loss += 1
                             spectrum_ids_that_contain_fragment.append(int(spectrum_id[0]))
     # calculate the ratio of the associated spectrum_id with the Mass2Motif fragment or loss
-    ratio_of_ass_spectra_with_frag_or_loss = round((num_of_ass_spectra_with_frag_or_loss / number_spectrum_ids_ass_with_motif), 2)
+    ratio_of_ass_spectra_with_frag_or_loss = round(
+        (num_of_ass_spectra_with_frag_or_loss / number_spectrum_ids_ass_with_motif), 2)
     M2M_fragment_or_loss.append(ratio_of_ass_spectra_with_frag_or_loss)
     M2M_fragment_or_loss.append(spectrum_ids_that_contain_fragment)
     M2M_frag_list_of_lists_with_counts.append(M2M_fragment_or_loss)
@@ -259,7 +264,7 @@ def select_motif_frag_based_on_spectra_ratio(mgf_file: str, list_of_selected_mot
     :param minimum_ratio: the minimum ratio of associated spectrum_ids with fragment or loss/total associated
     spectrum_ids with the motif that the fragment or loss with the highest ratio has to have for the mass2motif to be
     deemed interesting.
-    :return: Pandas Dataframe with  the selected motifs as an index and in one column a list of lists containing the
+    :return: Pandas Dataframe with the selected motifs as an index and in one column a list of lists containing the
     fragment or loss, probability of the fragment or loss, the ratio of associated spectrum_id with the fragment or loss
     , a list of the spectrum_ids that contain the fragment or loss for every selected fragment or loss.
     """
@@ -274,9 +279,6 @@ def select_motif_frag_based_on_spectra_ratio(mgf_file: str, list_of_selected_mot
             "All_Fragment+Probability+Ratio+spectra": empty_list_1}
     df_selected_motif_and_ratio = pd.DataFrame(data)
     df_selected_motif_and_ratio.set_index("motif", inplace=True)
-    # this variable can go soon
-    list_with_all_annotated_spectrum_ids=[]
-    spectrum_ids_with_potential_partial_annotation=set()
     for motif in list_of_selected_motifs:
         # list with all fragments and/or losses that the motif contains
         frag_loss_list_of_lists_with_counts=[]
@@ -291,38 +293,12 @@ def select_motif_frag_based_on_spectra_ratio(mgf_file: str, list_of_selected_mot
                                                     reverse=True)
         df_selected_motif_and_ratio.at[
             motif, "All_Fragment+Probability+Ratio+spectra"] = frag_loss_list_of_lists_with_counts
-
-        # EXTRA CODE: CAN BE DELETED calculate the ratio of spectra that are associated with more than 1 fragment or loss within the same motif
-        list_with_all_spectrum_ids=[]
-        for frag_or_loss_list in frag_loss_list_of_lists_with_counts:
-            spectra_list=frag_or_loss_list[3]
-            for num in spectra_list:
-                list_with_all_spectrum_ids.append(num)
-        for spectra in set(list_with_all_spectrum_ids):
-            list_with_all_annotated_spectrum_ids.append(spectra)
-        set_multiple=set()
-        count_single=0
-        for i in list_with_all_spectrum_ids:
-            if [spectra for spectra in list_with_all_spectrum_ids].count(i) > 1:
-                set_multiple.add(i)
-            else:
-                count_single+=1
-        count_multiple=len(set_multiple)
-        try:
-            ratio=count_multiple/count_single
-        except ZeroDivisionError:
-            ratio=f"count multiple only: {count_multiple}"
-        print(motif)
-        list_with_counts = [count_single, count_multiple, ratio]
-        print(f"count_single, count_multiple, ratio: {list_with_counts}")
-        # END OF EXTRA CODE
-
         #if the highest fragment or loss ratio of a motif is below the minimum_ratio (default: 0)
         #the whole motif will be discarded from the dataframe
         if frag_loss_list_of_lists_with_counts[0][2] < float(minimum_ratio):
             df_selected_motif_and_ratio=df_selected_motif_and_ratio.drop(motif)
-        #if the highest fragment or loss ratio of a motif is above the minumum_ratio the motif will be in the dataframe with one
-        # or two fragments and/or losses:
+        #if the highest fragment or loss ratio of a motif is above the minumum_ratio the motif will be in the dataframe
+        # with one or two fragments and/or losses:
         else:
             if len(frag_loss_list_of_lists_with_counts)>1:
                 # the second highest fragment or loss will only be included in the massql search if the ratio of above 0.5
@@ -335,21 +311,56 @@ def select_motif_frag_based_on_spectra_ratio(mgf_file: str, list_of_selected_mot
             else:
                 df_selected_motif_and_ratio.at[
                     motif, "Fragment+Probability+Ratio+spectra"] = frag_loss_list_of_lists_with_counts[:1]
-    #can also be removed:
-    # for index, row in df_selected_motif_and_ratio.iterrows():
-    #     list_of_lists = row['Fragment+Probability+Ratio+spectra']
-    #     print(list_of_lists)
-    #     for fragment or loss in df_selected_motif_and_ratio.at[index, list_of_lists]:
-    #         for i in fragment or loss[3]:
-    #             spectrum_ids_with_potential_partial_annotation = spectrum_ids_with_potential_partial_annotation.add(i)
-    # print(f"spectrum_ids with a potential partial annotation: {spectrum_ids_with_potential_partial_annotation}")
-    spectrum_ids_in_more_than_1_motif=[]
-    for i in list_with_all_annotated_spectrum_ids:
-        if [i for i in list_with_all_annotated_spectrum_ids].count(i) > 1:
-            spectrum_ids_in_more_than_1_motif.append(i)
-    print(f"spectrum_ids that are ass with more than 1 motif {spectrum_ids_in_more_than_1_motif}")
-    print(df_selected_motif_and_ratio)
     return df_selected_motif_and_ratio
+
+def cal_amount_of_spectrum_ass_with_amount_of_frag(df_selected_motif_and_ratio: pd.DataFrame) -> None:
+    """
+    calculates how many spectra in the selected mass2motifs are associated with 1 fragment_or_loss and with more
+
+    :param df_selected_motif_and_ratio: Pandas Dataframe with the selected motifs as an index and in one column a list
+    of lists containing the fragment or loss, probability of the fragment or loss, the ratio of associated spectrum_id
+    with the fragment or loss, a list of the spectrum_ids that contain the fragment or loss for every selected fragment
+    or loss.
+    :return: None
+
+    This is done before the selection of Mass2Motif fragments based on counts, so all the Mass2Motif fragments of the
+    selected Mass2Motifs are included in the analysis
+    """
+
+    list_all_spectrum_ids_in_all_M2M = []
+    for index, row in df_selected_motif_and_ratio.iterrows():
+        print(index)
+        frag_loss_list_of_lists_with_counts = row['All_Fragment+Probability+Ratio+spectra']
+        #calculate the amount of spectra that are associated with more than 1 fragment or loss within the same motif
+        list_with_all_spectrum_in_M2M = []
+        for frag_or_loss_list in frag_loss_list_of_lists_with_counts:
+            associated_spectra_list = frag_or_loss_list[3]
+            for num in associated_spectra_list:
+                list_with_all_spectrum_in_M2M.append(num)
+        for spectra in set(list_with_all_spectrum_in_M2M):
+            list_all_spectrum_ids_in_all_M2M.append(spectra)
+        set_multiple = set()
+        count_single = 0
+        for i in list_with_all_spectrum_in_M2M:
+            # if the spectrum identifier is multiple times in the list of spectra associated with the mass2motif
+            # the spectrum is associated with more than 1 mass2motif fragment or loss
+            if [spectra for spectra in list_with_all_spectrum_in_M2M].count(i) > 1:
+                set_multiple.add(i)
+            # else the spectrum is only associated with one mass2motif fragment or loss
+            else:
+                count_single += 1
+        count_multiple = len(set_multiple)
+        list_with_counts = [count_single, count_multiple]
+        print(f"count_single, count_multiple: {list_with_counts}")
+
+    # determine which spectra are associated with more than 2 Mass2Motifs
+    spectrum_ids_in_more_than_1_motif = []
+    for i in list_all_spectrum_ids_in_all_M2M:
+        if [i for i in list_all_spectrum_ids_in_all_M2M].count(i) > 1:
+            spectrum_ids_in_more_than_1_motif.append(i)
+    print(f"spectrum_ids that are ass with more than 1 selected motif {spectrum_ids_in_more_than_1_motif}")
+
+    return None
 
 def make_MassQL_search(fragments: list, intensity_threshold=0.8, mz_tolerance=0.01) -> str:
     """
@@ -394,16 +405,18 @@ def visualize_mol(smiles: str):
     return img
 
 def make_pdf(df_motifs_to_spectra: pd.DataFrame, df_spectra_to_smiles: pd.DataFrame,
-                 df_selected_motif_and_ratio: pd.DataFrame) -> None:
+                 df_selected_motif_and_ratio: pd.DataFrame, path_to_save_png_of_structures) -> None:
     """Makes an overview PDF with the Mass2Motif, fragments, and the associated analogs
 
-    :param df_motifs_to_spectra: Pandas dataframe, with the motifs as index and each associated spectrum_id in a separate
-    column. The last column is a list of lists of the associated spectrum_id, the probability and the overlap score.
+    :param df_motifs_to_spectra: Pandas dataframe, with the motifs as index and each associated spectrum_id in a
+    separate column. The last column is a list of lists of the associated spectrum_id, the probability and the overlap
+    score.
     :param df_spectra_to_smiles: Pandas dataframe, with the associated spectrum_id and their precursor m/z. Prediction
     certainty, precursor_mz_analog, and smiles of analogs are given for prediction certainties above threshold.
     :param df_selected_motif_and_ratio: Pandas Dataframe with the selected motifs as an index and in one column a list
-    of lists containing the fragment or loss, probability of the fragment or loss, the ratio of associated spectrum_id with the fragment or loss,
-    a list of the spectrum_ids that contain the fragment or loss for every selected fragment or loss.
+    of lists containing the fragment or loss, probability of the fragment or loss, the ratio of associated spectrum_id
+    with the fragment or loss, a list of the spectrum_ids that contain the fragment or loss for every selected fragment
+    or loss.
     """
     pdf = FPDF()
     pdf.add_page()
@@ -471,7 +484,7 @@ def make_pdf(df_motifs_to_spectra: pd.DataFrame, df_spectra_to_smiles: pd.DataFr
                             # using the smiles that is associated with the spectrum
                             pdf.image(visualize_mol(df_spectra_to_smiles.at[cell, "smiles"]))
                             # cell is spectrum number and the index is the name of the motif
-                            vis_MS2Query_mol(df_spectra_to_smiles.at[cell, "smiles"], cell, index)
+                            vis_MS2Query_mol(path_to_save_png_of_structures, df_spectra_to_smiles.at[cell, "smiles"], cell, index)
                             # print the prediction probability of the analog, and the mz of the smiles that is
                             # associated with the spectrum
                             pdf.multi_cell(200, 10, txt="analog m/z:{0}, prediction: {1}\n".format(
@@ -483,8 +496,9 @@ def make_file_with_massql_querries(df_selected_motif_and_ratio: pd.DataFrame) ->
     """Outputs a tab delimited file with the selected motifs, their fragments and their MassQL querries
 
     :param df_selected_motif_and_ratio: Pandas Dataframe with the selected motifs as an index and in one column a list
-    of lists containing the fragment or loss, probability of the fragment or loss, the ratio of associated spectrum_id with the fragment or loss,
-    a list of the spectrum_ids that contain the fragment or loss for every selected fragment or loss.
+    of lists containing the fragment or loss, probability of the fragment or loss, the ratio of associated spectrum_id
+    with the fragment or loss, a list of the spectrum_ids that contain the fragment or loss for every selected fragment
+    or loss.
     :return: path of tab delimited text file with the selected motif, its fragments+probabilities and the MassQL query
     """
     file_path = Path(r"motif_massql_querries.txt")
@@ -497,30 +511,31 @@ def make_file_with_massql_querries(df_selected_motif_and_ratio: pd.DataFrame) ->
     motif_query_file.close()
     return os.path.abspath(file_path)
 
-def vis_MS2Query_mol(smiles, spectrum_num, motif):
+def vis_MS2Query_mol(path_to_save_png: str, smiles: str, spectrum_num: int, motif: str) -> None:
     """
+    Takes the SMILES string and makes a png file of the structure
 
-    :param smiles:
-    :param spectrum_num:
-    :param motif:
-    :return:
+    :param smiles: string, SMILES of an analogue of a query spectrum
+    :param spectrum_num: int, the identifier of the experimental spectrum for which the analogue was identified
+    :param motif: str, name of the motif to which the spectrum was associated
+    :return: None
     """
     opts = MolDrawOptions()
     opts.updateAtomPalette({k: (0, 0, 0) for k in DrawingOptions.elemDict.keys()})
 
     mol = Chem.MolFromSmiles(smiles)
-    Draw.MolToFile(mol, f"/lustre/BIF/nobackup/seele006/MS2Query_identified_structures/{spectrum_num}_{motif}.png", options=opts)
+    Draw.MolToFile(mol, f"{path_to_save_png}/{spectrum_num}_{motif}.png", options=opts)
     return None
 
 def main() -> None:
     """Main function of this module"""
-
     #step 0: input of script
     before_script = time.perf_counter()
     path_to_file_with_MS2Query_csv= argv[1]
     path_file_with_Motif_spectrum_ids_csv = argv[2]
     path_file_with_Motif_fragments_csv = argv[3]
     path_to_gnps_output_mgf_file = argv[4]
+    path_to_save_png_of_structures = argv[5]
     # step 1: rearrange MS2LDA file with mass2motifs and spectrum_ids in dataframe
     df_motifs_to_spectra=convert_Mass2Motifs_to_df(path_file_with_Motif_spectrum_ids_csv, threshold_spectra_in_motif=4)
     #step 2: rearrange MS2Query file with spectrum_ids and smiles of analogs in dataframe
@@ -532,12 +547,16 @@ def main() -> None:
                                                            threshold_amount_analogs=1)
     # step 5: calculate the amount of associated spectrum_ids for each fragment or loss relative to the total amount of
     # spectrum_ids associated with the respective motif (so calculate the ratio)
-    df_selected_motif_and_ratio=select_motif_frag_based_on_spectra_ratio(path_to_gnps_output_mgf_file, list_of_selected_motifs, df_motifs_to_frag,
-                                 df_motifs_to_spectra)
-    #step 4: make a PDF where you can see each Mass2Motif, its fragments, and the associated analog structures
-    make_pdf(df_motifs_to_spectra,df_spectra_to_smiles,df_selected_motif_and_ratio)
-    # step 5: make a table with the selected motif and their corresponding massql querries
-    print(make_file_with_massql_querries(df_selected_motif_and_ratio))
+    df_selected_motif_and_ratio=select_motif_frag_based_on_spectra_ratio(path_to_gnps_output_mgf_file,
+                                                                         list_of_selected_motifs, df_motifs_to_frag,
+                                                                         df_motifs_to_spectra)
+    # step 6: calculate the amount of spectra in the selected Mass2Motifs that are associated with only one mass2motif
+    # fragment or loss
+    cal_amount_of_spectrum_ass_with_amount_of_frag(df_selected_motif_and_ratio)
+    #step 7: make a PDF where you can see each Mass2Motif, its fragments, and the associated analog structures
+    make_pdf(df_motifs_to_spectra,df_spectra_to_smiles,df_selected_motif_and_ratio, path_to_save_png_of_structures)
+    # step 8: make a table with the selected motif and their corresponding massql queries
+    print(f"path to file with the massql queries: {make_file_with_massql_querries(df_selected_motif_and_ratio)}")
     after_script = time.perf_counter()
     print("how long the total script took {0}".format(after_script - before_script))
 
