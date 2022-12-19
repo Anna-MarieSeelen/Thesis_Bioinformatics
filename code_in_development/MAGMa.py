@@ -26,25 +26,15 @@ import os
 import subprocess
 from decimal import *
 import ast
-from rdkit import Chem
 from rdkit.Chem.Descriptors import MolWt
 import time
 import shutil
 import pandas as pd
 import numpy as np
-from rdkit.Chem import Draw
-from rdkit.Chem.Draw.MolDrawing import DrawingOptions
-from matplotlib.colors import ColorConverter
-from rdkit.Chem.Draw.MolDrawing import MolDrawing
-import argparse
-import cairosvg
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
-import multiprocessing
 import signal
-import sys
-
 
 # functions
 

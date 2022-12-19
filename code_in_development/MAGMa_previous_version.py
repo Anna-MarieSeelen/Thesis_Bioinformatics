@@ -4,17 +4,15 @@ Author: Anna-Marie Seelen
 Studentnumber:1008970
 Description: This script runs MAGMa on one mgf formatted spectrum file and looks for smiles annotations for the features
 of the corresponding mass2motif for which the spectrum file was made using MassQL
-Usage: python3 *name_of_script* *path_to_structures_database* *path_to_spectrum_file* *path_to_store_results_db*
-*path_to_txt_file_with_motif_and_frag*
+Usage: python3 MAGMa.py *path_to_mgf_spectrum_files_from_massql_script* *path_to_store_results_db*
+*path_to_txt_file_with_massql_queries*
 
-    path_to_structures_database: path where the structure database is which was downloaded from HMDB and formatted with
-    process_hmdb.py from MAGMa
-    path_to_spectrum_file: path where the spectrum file is stored with a spectrum from the HMDB that contains a motif
-    which is determined with MassQL.py script.
-    path_to_store_results_db: path where the output database from MAGMa with the annotations for the spectrum should be
-    stored
-    path_to_txt_file_with_motif_and_frag: path to the output file from make_pdf_with_smiles.py in which each feature of
-    each mass2motif is indicated.
+    path_to_mgf_spectrum_files_from_massql_script: path where for each selected motif a file is stored with the
+    mgf-style selected library spectra found by the MassQL script
+    path_to_store_results_db: path where the output sqlite database from MAGMa with the annotations for the spectrum
+    should be stored
+    path_to_txt_file_with_massql_queries: path to the output file from make_pdf_with_smiles.py in which each fragment
+    or neutral loss of each mass2motif is indicated.
 """
 
 # import statements
@@ -26,18 +24,11 @@ import os
 import subprocess
 from decimal import *
 import ast
-from rdkit import Chem
 from rdkit.Chem.Descriptors import MolWt
 import time
 import shutil
 import pandas as pd
 import numpy as np
-from rdkit.Chem import Draw
-from rdkit.Chem.Draw.MolDrawing import DrawingOptions
-from matplotlib.colors import ColorConverter
-from rdkit.Chem.Draw.MolDrawing import MolDrawing
-import argparse
-import cairosvg
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import DrawingOptions, MolDrawOptions
@@ -49,8 +40,8 @@ def parse_input(mgf_file: str) -> dict:
     """Parses mgf into strings, where each string is a spectrum and stores those in dict with the spectrum_id as key.
 
     :param mgf_file: str, name of mgf formatted file containing MS/MS spectra from GNPS
-    :return: dictionary with {spectrum_id:record} where each record is a string containing the mgf-style accession of one
-    compound
+    :return: dictionary with {spectrum_id:record} where each record is a string containing the mgf-style accession of
+    one compound
     """
 
     lines_mgf_file = open(mgf_file)
@@ -89,7 +80,7 @@ def construct_path_to_db(identifier, path_to_store_results_db: str) -> tuple:
         return "new", file_path_results_db
 
 
-def make_mgf_txt_file_for_spectrum(spectrum_id, spectrum_record_mgf, path_to_store_spectrum_files: str) -> str:
+def make_mgf_txt_file_for_spectrum(spectrum_id: str, spectrum_record_mgf, path_to_store_spectrum_files: str) -> str:
     """
     Writes a spectrum containing the motif to a text file in mgf format using the identifier given by MassQL
     :param motif: str, the Mass2Motif for which the MassQL query was made and for which the spectrum was found, which
@@ -657,11 +648,9 @@ def main():
                     amount_of_annotated_spectra += 1
                     print(f"list_with_features: {list_with_annotated_features}, [], {amount_of_annotated_spectra}")
                     print(f"annotation: {list_with_annotated_features}, motif: {motif}, identifier:{spectrum_id}")
-                    print("heeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeey")
                     df_with_motifs = write_spectrum_output_to_df(list_with_annotated_features, df_with_motifs,motif)
                 else:
                     print("none of the features could be annotated")
-                    print("heeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeey")
                 print("one spectrum done")
             print(f"the amount of spectra found in MassQL for motif {motif}: {len(dict_with_mgf_spectra.keys())}")
             print(f"the identifiers of spectra found in MassQL for motif {motif}: {dict_with_mgf_spectra.keys()}")
