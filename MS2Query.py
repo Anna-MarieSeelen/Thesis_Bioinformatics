@@ -12,11 +12,9 @@ Usage: python3 *name_of_script* *path_folder_input* *path_folder_library_files*
 """
 # import statements
 from sys import argv
-import re
-import subprocess
-import os.path
 from ms2query.run_ms2query import download_default_models, default_library_file_base_names, run_complete_folder
 from ms2query.ms2library import create_library_object_from_one_dir
+import time
 
 # functions
 def ms2query(path_folder_input_files: str,path_folder_library_files: str) -> None:
@@ -38,9 +36,12 @@ def ms2query(path_folder_input_files: str,path_folder_library_files: str) -> Non
 def main() -> None:
     """Main function of this module"""
     # step 1: execute MS2Query
+    before_script = time.perf_counter()
     path_folder_input_files = argv[1]
     path_folder_library_files = argv[2]
     ms2query(path_folder_input_files, path_folder_library_files)
+    after_script = time.perf_counter()
+    print("how long the total script took {0}".format(after_script - before_script))
 
 if __name__ == "__main__":
     main()
