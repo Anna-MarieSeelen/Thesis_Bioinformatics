@@ -104,7 +104,6 @@ xz                        5.2.5                h7f8727e_1
 zipp                      3.8.0                    pypi_0    pypi
 zlib                      1.2.12               h7f8727e_2  
 
-
 ## Select Mass2Motifs
 
 ### Prepare environment
@@ -387,6 +386,10 @@ wrapt                     1.14.1                   pypi_0    pypi
 xz                        5.2.5                h7f8727e_1  
 zipp                      3.8.1                    pypi_0    pypi
 zlib                      1.2.12               h7f8727e_2  
+
+![image](https://user-images.githubusercontent.com/107037630/208644077-c91e8a1e-e96b-4de5-a505-b6de630c91b4.png)
+![image](https://user-images.githubusercontent.com/107037630/208644146-935b61b0-6aa4-4d20-9f6e-3305899de913.png)
+![image](https://user-images.githubusercontent.com/107037630/208644254-02dcd1f5-fd77-4502-870a-1fab0422c9c5.png)
 
 ### Install tools
 
