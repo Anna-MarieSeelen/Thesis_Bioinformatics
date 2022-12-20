@@ -80,7 +80,9 @@ e.g. python3 massql.py
 
 ### Extra information
 MassQL documentation: https://mwang87.github.io/MassQueryLanguage_Documentation/
+
 MassQL sandbox (try-out queries): https://msql.ucsd.edu/
+
 GNPS public spectral libraries: https://gnps.ucsd.edu/ProteoSAFe/libraries.jsp
 
 ## MAGMa
