@@ -9,6 +9,14 @@ The blue rectangular blocks represent tools or websites used in the pipeline, an
 
 MS2LDA was run through the GNPS website on the three .mzML files containing the measured MS2 spectra to generate Mass2Motifs. To run MS2LDA on GNPS, first a classical molecular network was generated on GNPS. After the MS2LDA analysis on GNPS was finished, the .dict file containing the information obtained through the MS2LDA analysis on GNPS (e.g. Mass2Motifs, Mass2Motif fragments or losses, etc.) was uploaded on MS2LDA.org using the upload tab in the create experiment option. From MS2LDA.org the .csv containing the extracted fragment and loss Mass2Motif fragments or losses, and the .csv containing all fragmentation spectra and Mass2Motifs matching details were downloaded. The consensus spectra in .mgf format from the classical molecular network and the two .csv files from MS2LDA with the Mass2Motifs, the Mass2Motif fragments or losses, and the spectrum identifiers of experimental spectra that contained certain Mass2Motif fragments or losses were used as an input for the pipeline.
 
+### Extra information
+
+Tutorial on classical molecular networking on GNPS: https://www.youtube.com/watch?v=PqTuex0nsGk&t=3s
+
+Tutorial on MS2LDA on GNPS: https://www.youtube.com/watch?v=0wKUmjPy40s
+
+Documentation MS2LDA on GNPS: https://ccms-ucsd.github.io/GNPSDocumentation/ms2lda/
+
 ## MS2Query
 
 see https://github.com/iomega/ms2query for installation and run instructions
@@ -70,6 +78,11 @@ e.g. python3 massql.py
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MassQL/output/json_enzo/GNPS.mgf 
 /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MassQL/output/json_enzo/GNPS.json
 
+### Extra information
+MassQL documentation: https://mwang87.github.io/MassQueryLanguage_Documentation/
+MassQL sandbox (try-out queries): https://msql.ucsd.edu/
+GNPS public spectral libraries: https://gnps.ucsd.edu/ProteoSAFe/libraries.jsp
+
 ## MAGMa
 
 ### Prepare environment
@@ -91,6 +104,10 @@ conda install -c conda-forge rdkit
 ### Run script
 
 e.g. python3 MAGMa_final.py /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MassQL/output/out_spectrum /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MAGMa/output/MAGMa_results_database_for_every_spectrum_from_massql /home/seele006/thesis/motif_massql_querries.txt /lustre/BIF/nobackup/seele006/MSc_thesis_annotation_Mass2Motif_fragments_data/MAGMa/output/pic_mass2Motif_frag
+
+### Extra information
+
+Pipeline developed by Rogers et al. https://github.com/iomega/motif_annotation/blob/master/annotate_motifs.py
 
 ## Output
 
