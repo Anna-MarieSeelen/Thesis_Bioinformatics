@@ -16,6 +16,7 @@ see https://github.com/iomega/ms2query for installation and run instructions
 A separate conda environment was made to run this script. This environment included the following packages:
 However, it should be noted that not all these packages are neccessary to run the script!!
 
+# Name                    Version                   Build  Channel
 _libgcc_mutex             0.1                        main  
 _openmp_mutex             5.1                       1_gnu  
 absl-py                   1.1.0                    pypi_0    pypi
@@ -284,6 +285,7 @@ e.g. python3 massql.py
 A separate conda environment was made to run this script. This environment included the following packages:
 However, it should be noted that not all these packages are neccessary to run the script!!
 
+# Name                    Version                   Build  Channel
 _libgcc_mutex             0.1                        main  
 _openmp_mutex             5.1                       1_gnu  
 blas                      1.0                         mkl  
