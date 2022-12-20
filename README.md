@@ -16,7 +16,7 @@ see https://github.com/iomega/ms2query for installation and run instructions
 A separate conda environment was made to run this script. This environment included the following packages:
 However, it should be noted that not all these packages are neccessary to run the script!!
 
-# Name                    Version                   Build  Channel
+Name                    Version                   Build  Channel
 _libgcc_mutex             0.1                        main  
 _openmp_mutex             5.1                       1_gnu  
 absl-py                   1.1.0                    pypi_0    pypi
@@ -112,7 +112,7 @@ zlib                      1.2.12               h7f8727e_2
 A separate conda environment was made to run this script. This environment included the following packages:
 However, it should be noted that not all these packages are neccessary to run the script!!
 
-# Name                    Version                   Build  Channel
+Name                    Version                   Build  Channel
 _libgcc_mutex             0.1                        main  
 _openmp_mutex             5.1                       1_gnu  
 ca-certificates           2022.4.26            h06a4308_0  
@@ -185,7 +185,7 @@ e.g. python3 select_Mass2Motif_frag_and_loss.py
 A separate conda environment was made to run this script. This environment included the following packages:
 However, it should be noted that not all these packages are neccessary to run the script!!
 
-# Name                    Version                   Build  Channel
+Name                    Version                   Build  Channel
 _libgcc_mutex             0.1                        main  
 _openmp_mutex             5.1                       1_gnu  
 aiosignal                 1.2.0                    pypi_0    pypi
@@ -285,7 +285,7 @@ e.g. python3 massql.py
 A separate conda environment was made to run this script. This environment included the following packages:
 However, it should be noted that not all these packages are neccessary to run the script!!
 
-# Name                    Version                   Build  Channel
+Name                    Version                   Build  Channel
 _libgcc_mutex             0.1                        main  
 _openmp_mutex             5.1                       1_gnu  
 blas                      1.0                         mkl  
