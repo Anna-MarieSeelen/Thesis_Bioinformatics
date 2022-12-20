@@ -14,6 +14,7 @@ MS2LDA was run through the GNPS website on the three .mzML files containing the 
 see https://github.com/iomega/ms2query for installation and run instructions
 
 A separate conda environment was made to run this script. This environment included the following packages:
+
 However, it should be noted that not all these packages are neccessary to run the script!!
 
 ![image](https://user-images.githubusercontent.com/107037630/208645289-9aeae64a-bf40-4a8b-a241-e933dce08085.png)
@@ -25,6 +26,7 @@ However, it should be noted that not all these packages are neccessary to run th
 ### Prepare environment
 
 A separate conda environment was made to run this script. This environment included the following packages:
+
 However, it should be noted that not all these packages are neccessary to run the script!!
 
 ![image](https://user-images.githubusercontent.com/107037630/208644562-db6dbbc0-db7c-433b-8882-e0b7dd74bcf6.png)
@@ -47,6 +49,7 @@ e.g. python3 select_Mass2Motif_frag_and_loss.py
 ### Prepare environment
 
 A separate conda environment was made to run this script. This environment included the following packages:
+
 However, it should be noted that not all these packages are neccessary to run the script!!
 
 ![image](https://user-images.githubusercontent.com/107037630/208644923-69339d08-bc52-48e2-bbf1-c7d541d4f4d3.png)
@@ -72,6 +75,7 @@ e.g. python3 massql.py
 ### Prepare environment
 
 A separate conda environment was made to run this script. This environment included the following packages:
+
 However, it should be noted that not all these packages are neccessary to run the script!!
 
 ![image](https://user-images.githubusercontent.com/107037630/208644077-c91e8a1e-e96b-4de5-a505-b6de630c91b4.png)
@@ -81,6 +85,7 @@ However, it should be noted that not all these packages are neccessary to run th
 ### Install tools
 
 see https://github.com/NLeSC/MAGMa/tree/master/job
+
 conda install -c conda-forge rdkit
 
 ### Run script
