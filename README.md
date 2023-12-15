@@ -114,5 +114,3 @@ Pipeline developed by Rogers et al. https://github.com/iomega/motif_annotation/b
 ## Output
 
 The annotations for each Mass2Motif mass fragment and neutral loss were combined in a tsv-formatted output file. The frequency that each SMILES annotation for a Mass2Motif fragment or loss was obtained, was also tracked in the .tsv file. If the molecular weight of the SMILES annotated to the neutral loss was not similar 1 decimal after the comma to the weight of the Mass2Motif neutral loss, the molecular weight of the SMILES structure was also written to the .tsv file.
-
-## Test
